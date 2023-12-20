@@ -1,0 +1,21 @@
+.{
+    .name = "zigurat",
+    .version = "0.1.0",
+    .paths = .{
+        "src",
+        "build.zig",
+        "build.zig.zon",
+        "MIT-LICENSE.txt",
+        "README.md",
+    },
+    .dependencies = .{
+        .mach_glfw = .{
+            .url = "https://github.com/artronics/mach-glfw/archive/710d01557e15d8ce9deffa2bed7325b31d02491a.tar.gz",
+            .hash = "12204779ba2f14b46f569110f774d5c3f48b7a105b6717e668bc410710bceae62072",
+        },
+        .mach_gpu = .{
+            .url = "https://github.com/artronics/mach-gpu/archive/eb2e4de6120f80c2699bfcfad57134078b552b31.tar.gz",
+            .hash = "1220d225bd38eaaf1acfd93c8b6937f1faf8d33721f41f683933cb046ea45cc08036",
+        },
+    },
+}
