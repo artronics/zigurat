@@ -4,7 +4,7 @@
         {
             "label": "build",
             "type": "shell",
-            "command": "zig build",
+            "command": "${env:HOME}/.local/bin/zig build",
             "problemMatcher": [],
             "group": {
                 "kind": "build",
@@ -13,7 +13,7 @@
         },{
             "label": "run",
             "type": "shell",
-            "command": "zig build run",
+            "command": "${env:HOME}/.local/bin/zig build run",
             "problemMatcher": [],
             "group": {
                 "kind": "build",
@@ -23,7 +23,15 @@
         {
             "label": "run main tests",
             "type": "shell",
-            "command": "zig test -femit-bin=${workspaceFolder}/zig-out/main-test ${workspaceFolder}/src/main.zig",
+            "command": "${env:HOME}/.local/bin/zig test -femit-bin=${workspaceFolder}/zig-out/main-test ${workspaceFolder}/src/main.zig",
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+            }
+        },{
+            "label": "run graphics tests",
+            "type": "shell",
+            "command": "${env:HOME}/.local/bin/zig test -femit-bin=${workspaceFolder}/zig-out/graphics-test ${workspaceFolder}/src/graphics.zig",
             "problemMatcher": [],
             "group": {
                 "kind": "test",

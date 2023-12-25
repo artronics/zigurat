@@ -4,9 +4,81 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const exe = b.addExecutable(.{
+    const lib = b.addStaticLibrary(.{
         .name = "zigurat",
         .root_source_file = .{ .path = "src/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // GPU
+    const gpu_dep = b.dependency("mach_gpu", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    @import("mach_gpu").link(b.dependency("mach_gpu", .{
+        .target = target,
+        .optimize = optimize,
+    }).builder, lib, .{}) catch unreachable;
+    lib.addModule("gpu", gpu_dep.module("mach-gpu"));
+
+    // GLFW
+    const glfw_dep = b.dependency("mach_glfw", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    @import("mach_glfw").link(b.dependency("mach_glfw", .{
+        .target = target,
+        .optimize = optimize,
+    }).builder, lib);
+    lib.addModule("glfw", glfw_dep.module("mach-glfw"));
+
+    b.installArtifact(lib);
+
+    const module = b.addModule("zigurat", .{
+        .source_file = .{ .path = "src/main.zig" },
+        .dependencies = &.{
+            .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
+            .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
+        },
+    });
+
+    // Examples
+    const hello_example = b.addExecutable(.{
+        .name = "hello",
+        .root_source_file = .{ .path = "examples/hello.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    hello_example.addModule("zigurat", module);
+
+    @import("mach_glfw").link(b.dependency("mach_glfw", .{
+        .target = target,
+        .optimize = optimize,
+    }).builder, hello_example);
+
+    @import("mach_gpu").link(b.dependency("mach_gpu", .{
+        .target = target,
+        .optimize = optimize,
+    }).builder, hello_example, .{}) catch unreachable;
+
+    const run_hello_cmd = b.addRunArtifact(hello_example);
+    run_hello_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_hello_cmd.addArgs(args);
+    }
+
+    const run_hello_step = b.step("run-hello", "Run the hello example");
+    run_hello_step.dependOn(&run_hello_cmd.step);
+
+    // Tests
+    addTest(b, "main", optimize, target);
+    addTest(b, "graphics", optimize, target);
+}
+
+fn addTest(b: *std.Build, comptime name: []const u8, optimize: std.builtin.OptimizeMode, target: std.zig.CrossTarget) void {
+    const unit_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/" ++ name ++ ".zig" },
         .target = target,
         .optimize = optimize,
     });
@@ -16,40 +88,24 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    exe.addModule("glfw", glfw_dep.module("mach-glfw"));
+    unit_tests.addModule("glfw", glfw_dep.module("mach-glfw"));
     @import("mach_glfw").link(b.dependency("mach_glfw", .{
         .target = target,
         .optimize = optimize,
-    }).builder, exe);
+    }).builder, unit_tests);
 
     // GPU
     const gpu_dep = b.dependency("mach_gpu", .{
         .target = target,
         .optimize = optimize,
     });
-    exe.addModule("gpu", gpu_dep.module("mach-gpu"));
+    unit_tests.addModule("gpu", gpu_dep.module("mach-gpu"));
     @import("mach_gpu").link(b.dependency("mach_gpu", .{
         .target = target,
         .optimize = optimize,
-    }).builder, exe, .{}) catch unreachable;
-
-    b.installArtifact(exe);
-
-    const run_cmd = b.addRunArtifact(exe);
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
-    const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
+    }).builder, unit_tests, .{}) catch unreachable;
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
-    const test_step = b.step("test", "Run unit tests");
+    const test_step = b.step("test-" ++ name, "Run " ++ name ++ "tests");
     test_step.dependOn(&run_unit_tests.step);
 }

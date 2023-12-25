@@ -4,6 +4,7 @@ const glfw = @import("glfw");
 const gpu = @import("gpu");
 
 pub const GPUInterface = gpu.dawn.Interface;
+pub const DawnInterface = gpu.dawn.Interface;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -36,25 +37,10 @@ pub fn main() !void {
     window_data.current_desc = descriptor;
     window_data.target_desc = descriptor;
 
-    const vs =
-        \\ @vertex fn main(
-        \\     @builtin(vertex_index) VertexIndex : u32
-        \\ ) -> @builtin(position) vec4<f32> {
-        \\     var pos = array<vec2<f32>, 3>(
-        \\         vec2<f32>( 0.0,  0.5),
-        \\         vec2<f32>(-0.5, -0.5),
-        \\         vec2<f32>( 0.5, -0.5)
-        \\     );
-        \\     return vec4<f32>(pos[VertexIndex], 0.0, 1.0);
-        \\ }
-    ;
+    const vs = @embedFile("shader.vert.wgsl");
     const vs_module = setup.device.createShaderModuleWGSL("my vertex shader", vs);
 
-    const fs =
-        \\ @fragment fn main() -> @location(0) vec4<f32> {
-        \\     return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-        \\ }
-    ;
+    const fs = @embedFile("shader.frag.wgsl");
     const fs_module = setup.device.createShaderModuleWGSL("my fragment shader", fs);
 
     // Fragment state
@@ -242,4 +228,8 @@ pub fn setupWindow(allocator: std.mem.Allocator) !Setup {
         .window = window,
         .surface = surface,
     };
+}
+test "main" {
+    try main();
+    try std.testing.expect(true);
 }
