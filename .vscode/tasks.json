@@ -11,9 +11,9 @@
                 "isDefault": false
             }
         },{
-            "label": "run",
+            "label": "run-hello",
             "type": "shell",
-            "command": "${env:HOME}/.local/bin/zig build run",
+            "command": "${env:HOME}/.local/bin/zig build run-hello",
             "problemMatcher": [],
             "group": {
                 "kind": "build",

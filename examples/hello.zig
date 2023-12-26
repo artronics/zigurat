@@ -1,9 +1,13 @@
 const std = @import("std");
-const zigurat = @import("zigurat");
+const zt = @import("zigurat");
 
-pub const GPUInterface = zigurat.DawnInterface;
+pub const GPUInterface = zt.DawnInterface;
 
 pub fn main() !void {
     std.log.warn("hello", .{});
-    try zigurat.main();
+
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    const b = try zt.Platform.init(allocator);
+    try b.run();
 }

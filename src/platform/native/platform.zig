@@ -4,31 +4,30 @@ const gpu = @import("gpu");
 const glfw = @import("glfw");
 const testing = std.testing;
 const expect = testing.expect;
+const objc = @import("objc_message.zig");
 
-// pub var adapter: *gpu.Adapter = undefined;
-// pub var device: *gpu.Device = undefined;
-// pub var queue: *gpu.Queue = undefined;
-// pub var swap_chain: *gpu.SwapChain = undefined;
-// pub var descriptor: gpu.SwapChain.Descriptor = undefined;
-
-const Backend = struct {
+pub const Platform = struct {
     allocator: Allocator,
-    adaptor: *gpu.Adapter,
-    suface: *gpu.Surface,
+    instance: *gpu.Instance,
+    adapter: *gpu.Adapter,
+    device: *gpu.Device,
+    queue: *gpu.Queue,
+    swap_chain: *gpu.SwapChain,
+    swap_chain_desc: gpu.SwapChain.Descriptor,
+    surface: *gpu.Surface,
+    pipeline: *gpu.RenderPipeline,
+    window: glfw.Window,
 
     const Self = @This();
 
-    pub const GPUInterface = gpu.dawn.Interface;
-    fn init(allocator: Allocator) !Self {
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        const al = gpa.allocator();
-        try gpu.Impl.init(al, .{});
+    pub fn init(allocator: Allocator) !Self {
+        try gpu.Impl.init(allocator, .{});
         const instance = gpu.createInstance(null);
         if (instance == null) {
             std.debug.print("failed to create GPU instance\n", .{});
             std.process.exit(1);
         }
-        const backend_type = try detectBackendType(allocator);
+        const backend_type = try detectBackendType();
 
         glfw.setErrorCallback(errorCallback);
         if (!glfw.init(.{})) {
@@ -58,14 +57,131 @@ const Backend = struct {
             std.debug.print("failed to create GPU adapter: {s}\n", .{response.message.?});
             std.process.exit(1);
         }
+        // Print which adapter we are using.
+        var props = std.mem.zeroes(gpu.Adapter.Properties);
+        response.adapter.?.getProperties(&props);
+        std.debug.print("found {s} backend on {s} adapter: {s}, {s}\n", .{
+            props.backend_type.name(),
+            props.adapter_type.name(),
+            props.name,
+            props.driver_description,
+        });
+
+        // Create a device with default limits/features.
+        const device = response.adapter.?.createDevice(null);
+        if (device == null) {
+            std.debug.print("failed to create GPU device\n", .{});
+            std.process.exit(1);
+        }
+
+        device.?.setUncapturedErrorCallback({}, printUnhandledErrorCallback);
+
+        const swap_chain_format = .bgra8_unorm;
+        const framebuffer_size = window.getFramebufferSize();
+        const swap_chain_desc = gpu.SwapChain.Descriptor{
+            .label = "main swap chain",
+            .usage = .{ .render_attachment = true },
+            .format = swap_chain_format,
+            .width = framebuffer_size.width,
+            .height = framebuffer_size.height,
+            .present_mode = .mailbox,
+        };
+        const swap_chain = device.?.createSwapChain(surface, &swap_chain_desc);
+
+        // pipeline
+        const vs = @embedFile("../../shader.vert.wgsl");
+        const vs_module = device.?.createShaderModuleWGSL("my vertex shader", vs);
+
+        const fs = @embedFile("../../shader.frag.wgsl");
+        const fs_module = device.?.createShaderModuleWGSL("my fragment shader", fs);
+
+        // Fragment state
+        const blend = gpu.BlendState{
+            .color = .{
+                .dst_factor = .one,
+            },
+            .alpha = .{
+                .dst_factor = .one,
+            },
+        };
+        const color_target = gpu.ColorTargetState{
+            .format = swap_chain_format,
+            .blend = &blend,
+            .write_mask = gpu.ColorWriteMaskFlags.all,
+        };
+        const fragment = gpu.FragmentState.init(.{
+            .module = fs_module,
+            .entry_point = "main",
+            .targets = &.{color_target},
+        });
+        const pipeline_descriptor = gpu.RenderPipeline.Descriptor{
+            .fragment = &fragment,
+            .layout = null,
+            .depth_stencil = null,
+            .vertex = gpu.VertexState{
+                .module = vs_module,
+                .entry_point = "main",
+            },
+            .multisample = .{},
+            .primitive = .{},
+        };
+        const pipeline = device.?.createRenderPipeline(&pipeline_descriptor);
+
+        vs_module.release();
+        fs_module.release();
 
         return Self{
             .allocator = allocator,
+            .adapter = response.adapter.?,
+            .device = device.?,
             .surface = surface,
+            .instance = instance.?,
+            .window = window,
+            .queue = device.?.getQueue(),
+            .swap_chain = swap_chain,
+            .swap_chain_desc = swap_chain_desc,
+            .pipeline = pipeline,
         };
     }
     fn errorCallback(error_code: glfw.ErrorCode, description: [:0]const u8) void {
         std.log.err("glfw: {}: {s}\n", .{ error_code, description });
+    }
+    pub fn run(self: Self) !void {
+        while (!self.window.shouldClose()) {
+            try self.frame();
+            std.time.sleep(16 * std.time.ns_per_ms);
+        }
+    }
+    pub fn frame(self: Self) !void {
+        glfw.pollEvents();
+        self.device.tick();
+
+        const back_buffer_view = self.swap_chain.getCurrentTextureView().?;
+        const color_attachment = gpu.RenderPassColorAttachment{
+            .view = back_buffer_view,
+            .resolve_target = null,
+            .clear_value = std.mem.zeroes(gpu.Color),
+            .load_op = .clear,
+            .store_op = .store,
+        };
+
+        const encoder = self.device.createCommandEncoder(null);
+        const render_pass_info = gpu.RenderPassDescriptor.init(.{
+            .color_attachments = &.{color_attachment},
+        });
+        const pass = encoder.beginRenderPass(&render_pass_info);
+        pass.setPipeline(self.pipeline);
+        pass.draw(3, 1, 0, 0);
+        pass.end();
+        pass.release();
+
+        var command = encoder.finish(null);
+        encoder.release();
+
+        self.queue.submit(&[_]*gpu.CommandBuffer{command});
+        command.release();
+        self.swap_chain.present();
+        back_buffer_view.release();
     }
 };
 
@@ -86,13 +202,14 @@ inline fn requestAdapterCallback(
         .message = message,
     };
 }
-pub fn detectBackendType() !gpu.BackendType {
+fn detectBackendType() !gpu.BackendType {
     const target = @import("builtin").target;
     if (target.isDarwin()) return .metal;
     if (target.os.tag == .windows) return .d3d12;
     return .vulkan;
 }
-pub fn createSurfaceForWindow(
+
+fn createSurfaceForWindow(
     instance: *gpu.Instance,
     window: glfw.Window,
     comptime glfw_options: glfw.BackendOptions,
@@ -150,26 +267,17 @@ pub fn createSurfaceForWindow(
     } else unreachable;
 }
 
-const objc = struct {
-    pub const SEL = opaque {};
-    pub const Class = opaque {};
-};
-
-pub extern fn sel_getUid(str: [*c]const u8) ?*objc.SEL;
-pub extern fn objc_getClass(name: [*c]const u8) ?*objc.Class;
-pub extern fn objc_msgSend() void;
-
-pub const AutoReleasePool = if (!@import("builtin").target.isDarwin()) opaque {
-    pub fn init() error{OutOfMemory}!?*AutoReleasePool {
+const AutoReleasePool = if (!@import("builtin").target.isDarwin()) opaque {
+    fn init() error{OutOfMemory}!?*AutoReleasePool {
         return null;
     }
 
-    pub fn release(pool: ?*AutoReleasePool) void {
+    fn release(pool: ?*AutoReleasePool) void {
         _ = pool;
         return;
     }
 } else opaque {
-    pub fn init() error{OutOfMemory}!?*AutoReleasePool {
+    fn init() error{OutOfMemory}!?*AutoReleasePool {
         // pool = [NSAutoreleasePool alloc];
         var pool = msgSend(objc.objc_getClass("NSAutoreleasePool"), "alloc", .{}, ?*AutoReleasePool);
         if (pool == null) return error.OutOfMemory;
@@ -181,13 +289,13 @@ pub const AutoReleasePool = if (!@import("builtin").target.isDarwin()) opaque {
         return pool;
     }
 
-    pub fn release(pool: ?*AutoReleasePool) void {
+    fn release(pool: ?*AutoReleasePool) void {
         // [pool release];
         msgSend(pool, "release", .{}, void);
     }
 };
 // Borrowed from https://github.com/hazeycode/zig-objcrt
-pub fn msgSend(obj: anytype, sel_name: [:0]const u8, args: anytype, comptime ReturnType: type) ReturnType {
+fn msgSend(obj: anytype, sel_name: [:0]const u8, args: anytype, comptime ReturnType: type) ReturnType {
     const args_meta = @typeInfo(@TypeOf(args)).Struct.fields;
 
     const FnType = switch (args_meta.len) {
@@ -199,13 +307,13 @@ pub fn msgSend(obj: anytype, sel_name: [:0]const u8, args: anytype, comptime Ret
         else => @compileError("Unsupported number of args"),
     };
 
-    // NOTE: func is a var because making it const causes a compile error which I believe is a compiler bug
     const func = @as(FnType, @ptrCast(&objc.objc_msgSend));
     const sel = objc.sel_getUid(@as([*c]const u8, @ptrCast(sel_name)));
 
     return @call(.auto, func, .{ obj, sel } ++ args);
 }
-pub fn glfwWindowHintsForBackend(backend: gpu.BackendType) glfw.Window.Hints {
+
+fn glfwWindowHintsForBackend(backend: gpu.BackendType) glfw.Window.Hints {
     return switch (backend) {
         .opengl => .{
             // Ask for OpenGL 4.4 which is what the GL backend requires for compute shaders and
@@ -228,7 +336,8 @@ pub fn glfwWindowHintsForBackend(backend: gpu.BackendType) glfw.Window.Hints {
         },
     };
 }
-pub fn detectGLFWOptions() glfw.BackendOptions {
+
+fn detectGLFWOptions() glfw.BackendOptions {
     const target = @import("builtin").target;
     if (target.isDarwin()) return .{ .cocoa = true };
     return switch (target.os.tag) {
@@ -238,8 +347,19 @@ pub fn detectGLFWOptions() glfw.BackendOptions {
     };
 }
 
+inline fn printUnhandledErrorCallback(_: void, typ: gpu.ErrorType, message: [*:0]const u8) void {
+    switch (typ) {
+        .validation => std.log.err("gpu: validation error: {s}\n", .{message}),
+        .out_of_memory => std.log.err("gpu: out of memory: {s}\n", .{message}),
+        .device_lost => std.log.err("gpu: device lost: {s}\n", .{message}),
+        .unknown => std.log.err("gpu: unknown error: {s}\n", .{message}),
+        else => unreachable,
+    }
+    std.os.exit(1);
+}
+
 test "graphics" {
     const a = testing.allocator;
-    const gfx = try Backend.init(a);
+    const gfx = try Platform.init(a);
     _ = gfx;
 }
