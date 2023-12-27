@@ -7,6 +7,28 @@ const expect = testing.expect;
 const objc = @import("objc_message.zig");
 const util = @import("util.zig");
 
+pub const Vertex = extern struct {
+    pos: @Vector(3, f32),
+    col: @Vector(3, f32),
+
+    const attributes = [_]gpu.VertexAttribute{
+        .{ .format = .float32x3, .offset = @offsetOf(Vertex, "pos"), .shader_location = 0 },
+        .{ .format = .float32x3, .offset = @offsetOf(Vertex, "col"), .shader_location = 1 },
+    };
+
+    pub fn desc() gpu.VertexBufferLayout {
+        return gpu.VertexBufferLayout.init(.{
+            .array_stride = @sizeOf(Vertex),
+            .step_mode = .vertex,
+            .attributes = &attributes,
+        });
+    }
+};
+const vertices = [_]Vertex{
+    Vertex{ .pos = [_]f32{ 0.0, 0.5, 0.0 }, .col = [_]f32{ 1.0, 0.0, 0.0 } },
+    Vertex{ .pos = [_]f32{ -0.5, -0.5, 0.0 }, .col = [_]f32{ 0.0, 1.0, 0.0 } },
+    Vertex{ .pos = [_]f32{ 0.5, -0.5, 0.0 }, .col = [_]f32{ 0.0, 0.0, 1.0 } },
+};
 pub const Platform = struct {
     allocator: Allocator,
     instance: *gpu.Instance,
@@ -18,6 +40,7 @@ pub const Platform = struct {
     surface: *gpu.Surface,
     pipeline: *gpu.RenderPipeline,
     window: glfw.Window,
+    vertex_buffer: *gpu.Buffer,
 
     const Self = @This();
 
@@ -90,10 +113,10 @@ pub const Platform = struct {
         const swap_chain = device.?.createSwapChain(surface, &swap_chain_desc);
 
         // pipeline
-        const vs = @embedFile("shader.vert.wgsl");
+        const vs = @embedFile("shader.wgsl");
         const vs_module = device.?.createShaderModuleWGSL("my vertex shader", vs);
 
-        const fs = @embedFile("shader.frag.wgsl");
+        const fs = @embedFile("shader.wgsl");
         const fs_module = device.?.createShaderModuleWGSL("my fragment shader", fs);
 
         // Fragment state
@@ -112,19 +135,43 @@ pub const Platform = struct {
         };
         const fragment = gpu.FragmentState.init(.{
             .module = fs_module,
-            .entry_point = "main",
+            .entry_point = "fs_main",
             .targets = &.{color_target},
         });
+        const pipeline_layout = device.?.createPipelineLayout(&gpu.PipelineLayout.Descriptor.init(.{
+            .label = "my pipeline layout",
+            .bind_group_layouts = &.{},
+        }));
+
+        const vertex_buffer = device.?.createBuffer(&.{
+            .usage = .{ .vertex = true },
+            .size = @sizeOf(Vertex) * vertices.len,
+            .mapped_at_creation = .true,
+        });
+        const vertex_mapped = vertex_buffer.getMappedRange(Vertex, 0, vertices.len);
+        @memcpy(vertex_mapped.?, vertices[0..]);
+        vertex_buffer.unmap();
+
+        const primitive = gpu.PrimitiveState{
+            .topology = .triangle_list,
+            .front_face = .ccw,
+            .cull_mode = .back,
+        };
         const pipeline_descriptor = gpu.RenderPipeline.Descriptor{
             .fragment = &fragment,
-            .layout = null,
+            .layout = pipeline_layout,
             .depth_stencil = null,
-            .vertex = gpu.VertexState{
+            .vertex = gpu.VertexState.init(.{
                 .module = vs_module,
-                .entry_point = "main",
+                .entry_point = "vs_main",
+                .buffers = &.{Vertex.desc()},
+            }),
+            .multisample = .{
+                .count = 1,
+                .mask = 0xFFFFFFFF,
+                .alpha_to_coverage_enabled = gpu.Bool32.false,
             },
-            .multisample = .{},
-            .primitive = .{},
+            .primitive = primitive,
         };
         const pipeline = device.?.createRenderPipeline(&pipeline_descriptor);
 
@@ -142,6 +189,7 @@ pub const Platform = struct {
             .swap_chain = swap_chain,
             .swap_chain_desc = swap_chain_desc,
             .pipeline = pipeline,
+            .vertex_buffer = vertex_buffer,
         };
     }
     fn errorCallback(error_code: glfw.ErrorCode, description: [:0]const u8) void {
@@ -153,7 +201,7 @@ pub const Platform = struct {
             std.time.sleep(16 * std.time.ns_per_ms);
         }
     }
-    pub fn frame(self: Self) !void {
+    fn frame(self: Self) !void {
         glfw.pollEvents();
         self.device.tick();
 
@@ -161,7 +209,8 @@ pub const Platform = struct {
         const color_attachment = gpu.RenderPassColorAttachment{
             .view = back_buffer_view,
             .resolve_target = null,
-            .clear_value = std.mem.zeroes(gpu.Color),
+            // .clear_value = std.mem.zeroes(gpu.Color),
+            .clear_value = gpu.Color{ .r = 0.1, .g = 0.2, .b = 0.3, .a = 1.0 },
             .load_op = .clear,
             .store_op = .store,
         };
@@ -170,9 +219,13 @@ pub const Platform = struct {
         const render_pass_info = gpu.RenderPassDescriptor.init(.{
             .color_attachments = &.{color_attachment},
         });
+
         const pass = encoder.beginRenderPass(&render_pass_info);
+
         pass.setPipeline(self.pipeline);
-        pass.draw(3, 1, 0, 0);
+
+        pass.setVertexBuffer(0, self.vertex_buffer, 0, @sizeOf(Vertex) * vertices.len);
+        pass.draw(vertices.len, 1, 0, 0);
         pass.end();
         pass.release();
 
@@ -183,6 +236,9 @@ pub const Platform = struct {
         command.release();
         self.swap_chain.present();
         back_buffer_view.release();
+    }
+    pub fn frame2(self: Self) !void {
+        _ = self;
     }
 };
 

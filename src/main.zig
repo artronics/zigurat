@@ -1,6 +1,6 @@
 const std = @import("std");
 const gpu = @import("gpu");
-const platform = @import("platform/native.zig");
+const platform = @import("platform.zig");
 
 pub const Platform = platform.Platform;
 

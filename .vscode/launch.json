@@ -2,10 +2,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "run",
+            "name": "run-hello",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/zig-out/bin/zigurat",
+            "program": "${workspaceFolder}/zig-out/bin/hello",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

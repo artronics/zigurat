@@ -62,6 +62,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }).builder, hello_example, .{}) catch unreachable;
 
+    b.installArtifact(hello_example);
     const run_hello_cmd = b.addRunArtifact(hello_example);
     run_hello_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
