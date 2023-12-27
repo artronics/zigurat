@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const gpu = @import("gpu");
 const glfw = @import("glfw");
+const zigimg = @import("zigimg");
 const testing = std.testing;
 const expect = testing.expect;
 const objc = @import("objc_message.zig");
@@ -10,10 +11,12 @@ const util = @import("util.zig");
 pub const Vertex = extern struct {
     position: @Vector(3, f32),
     color: @Vector(3, f32),
+    texCoords: @Vector(2, f32),
 
     const attributes = [_]gpu.VertexAttribute{
         .{ .format = .float32x3, .offset = @offsetOf(Vertex, "position"), .shader_location = 0 },
         .{ .format = .float32x3, .offset = @offsetOf(Vertex, "color"), .shader_location = 1 },
+        .{ .format = .float32x2, .offset = @offsetOf(Vertex, "texCoords"), .shader_location = 2 },
     };
 
     pub fn desc() gpu.VertexBufferLayout {
@@ -24,15 +27,33 @@ pub const Vertex = extern struct {
         });
     }
 };
+
 const vertices = [_]Vertex{
-    // Vertex{ .position = [_]f32{ 0.0, 0.5, 0.0 }, .color = [_]f32{ 1.0, 0.0, 0.0 } },
-    // Vertex{ .position = [_]f32{ -0.5, -0.5, 0.0 }, .color = [_]f32{ 0.0, 1.0, 0.0 } },
-    // Vertex{ .position = [_]f32{ 0.5, -0.5, 0.0 }, .color = [_]f32{ 0.0, 0.0, 1.0 } },
-    Vertex{ .position = [_]f32{ -0.0868241, 0.49240386, 0.0 }, .color = [_]f32{ 0.5, 0.0, 0.5 } }, // A
-    Vertex{ .position = [_]f32{ -0.49513406, 0.06958647, 0.0 }, .color = [_]f32{ 0.5, 0.0, 0.5 } }, // B
-    Vertex{ .position = [_]f32{ -0.21918549, -0.44939706, 0.0 }, .color = [_]f32{ 0.5, 0.0, 0.5 } }, // C
-    Vertex{ .position = [_]f32{ 0.35966998, -0.3473291, 0.0 }, .color = [_]f32{ 0.5, 0.0, 0.5 } }, // D
-    Vertex{ .position = [_]f32{ 0.44147372, 0.2347359, 0.0 }, .color = [_]f32{ 0.5, 0.0, 0.5 } }, // E
+    Vertex{
+        .position = [_]f32{ -0.0868241, 0.49240386, 0.0 },
+        .color = [_]f32{ 0.5, 0.0, 0.5 },
+        .texCoords = [_]f32{ 0.4131759, 1 - 0.99240386 },
+    }, // A
+    Vertex{
+        .position = [_]f32{ -0.49513406, 0.06958647, 0.0 },
+        .color = [_]f32{ 0.5, 0.0, 0.5 },
+        .texCoords = [_]f32{ 0.0048659444, 1 - 0.56958647 },
+    }, // B
+    Vertex{
+        .position = [_]f32{ -0.21918549, -0.44939706, 0.0 },
+        .color = [_]f32{ 0.5, 0.0, 0.5 },
+        .texCoords = [_]f32{ 0.28081453, 1 - 0.05060294 },
+    }, // C
+    Vertex{
+        .position = [_]f32{ 0.35966998, -0.3473291, 0.0 },
+        .color = [_]f32{ 0.5, 0.0, 0.5 },
+        .texCoords = [_]f32{ 0.85967, 1 - 0.1526709 },
+    }, // D
+    Vertex{
+        .position = [_]f32{ 0.44147372, 0.2347359, 0.0 },
+        .color = [_]f32{ 0.5, 0.0, 0.5 },
+        .texCoords = [_]f32{ 0.9414737, 1 - 0.7347359 },
+    }, // E
 };
 const indices = [_]u16{
     0, 1, 4,
@@ -53,6 +74,9 @@ pub const Platform = struct {
     window: glfw.Window,
     vertex_buffer: *gpu.Buffer,
     index_buffer: *gpu.Buffer,
+    texture: *gpu.Texture,
+    texture_data_layout: gpu.Texture.DataLayout,
+    bind_group: *gpu.BindGroup,
 
     const Self = @This();
 
@@ -123,6 +147,7 @@ pub const Platform = struct {
             .present_mode = .mailbox,
         };
         const swap_chain = device.?.createSwapChain(surface, &swap_chain_desc);
+        const queue = device.?.getQueue();
 
         // pipeline
         const vs = @embedFile("shader.wgsl");
@@ -150,10 +175,6 @@ pub const Platform = struct {
             .entry_point = "fs_main",
             .targets = &.{color_target},
         });
-        const pipeline_layout = device.?.createPipelineLayout(&gpu.PipelineLayout.Descriptor.init(.{
-            .label = "my pipeline layout",
-            .bind_group_layouts = &.{},
-        }));
 
         // vertex buffer
         const vertex_buffer = device.?.createBuffer(&.{
@@ -175,15 +196,94 @@ pub const Platform = struct {
         @memcpy(index_mapped.?, indices[0..]);
         index_buffer.unmap();
 
-        // const vertex_mapped = index_buffer.getMappedRange(Vertex, 0, vertices.len);
-        // @memcpy(vertex_mapped.?, vertices[0..]);
-        // index_buffer.unmap();
+        // Texture
+        const happy_tree = @embedFile("happy-tree.png");
+        var img = try zigimg.Image.fromMemory(allocator, happy_tree);
+        defer img.deinit();
+        const img_size = gpu.Extent3D{ .width = @as(u32, @intCast(img.width)), .height = @as(u32, @intCast(img.height)) };
+
+        const tex_desc = gpu.Texture.Descriptor.init(.{
+            .label = "happy-tree",
+            .size = img_size,
+            .format = .rgba8_unorm_srgb,
+            .usage = .{
+                .texture_binding = true,
+                .copy_dst = true,
+                .render_attachment = true,
+            },
+            .mip_level_count = 1,
+            .sample_count = 1,
+        });
+        const texture = device.?.createTexture(&tex_desc);
+
+        // Upload the pixels (from the CPU) to the GPU. You could e.g. do this once per frame if you
+        // wanted the image to be updated dynamically.
+        const data_layout = gpu.Texture.DataLayout{
+            .bytes_per_row = @as(u32, @intCast(img.width * 4)),
+            .rows_per_image = @as(u32, @intCast(img.height)),
+        };
+
+        switch (img.pixels) {
+            .rgba32 => |pixels| queue.writeTexture(&.{ .texture = texture }, &data_layout, &img_size, pixels),
+            .rgb24 => |pixels| {
+                const data = try rgb24ToRgba32(allocator, pixels);
+                defer data.deinit(allocator);
+                queue.writeTexture(&.{ .texture = texture }, &data_layout, &img_size, data.rgba32);
+            },
+            else => @panic("unsupported image color format"),
+        }
+        const tex_view = texture.createView(&.{});
+        const sampler_desc = gpu.Sampler.Descriptor{
+            .address_mode_u = .clamp_to_edge,
+            .address_mode_v = .clamp_to_edge,
+            .address_mode_w = .clamp_to_edge,
+            .mag_filter = .linear,
+            .min_filter = .nearest,
+            .mipmap_filter = .nearest,
+        };
+        const tex_sampler = device.?.createSampler(&sampler_desc);
+
+        const bind_grp_layout_desc = gpu.BindGroupLayout.Descriptor.init(.{
+            .label = "tex_bind_group_layout",
+            .entries = &.{
+                .{
+                    .binding = 0,
+                    .visibility = .{ .fragment = true },
+                    .texture = .{
+                        .multisampled = gpu.Bool32.false,
+                        .view_dimension = .dimension_2d,
+                        .sample_type = .float,
+                    },
+                },
+                .{
+                    .binding = 1,
+                    .visibility = .{ .fragment = true },
+                    .sampler = .{
+                        .type = .filtering,
+                    },
+                },
+            },
+        });
+        const bind_group_layout = device.?.createBindGroupLayout(&bind_grp_layout_desc);
+        const bind_group = device.?.createBindGroup(&gpu.BindGroup.Descriptor.init(.{
+            .layout = bind_group_layout,
+            .entries = &.{
+                gpu.BindGroup.Entry.textureView(0, tex_view),
+                gpu.BindGroup.Entry.sampler(1, tex_sampler),
+            },
+        }));
 
         const primitive = gpu.PrimitiveState{
             .topology = .triangle_list,
             .front_face = .ccw,
             .cull_mode = .back,
         };
+        const pipeline_layout = device.?.createPipelineLayout(&gpu.PipelineLayout.Descriptor.init(
+            .{
+                .label = "my pipeline layout",
+                .bind_group_layouts = &.{bind_group_layout},
+            },
+        ));
         const pipeline_descriptor = gpu.RenderPipeline.Descriptor{
             .fragment = &fragment,
             .layout = pipeline_layout,
@@ -212,12 +312,15 @@ pub const Platform = struct {
             .surface = surface,
             .instance = instance.?,
             .window = window,
-            .queue = device.?.getQueue(),
+            .queue = queue,
             .swap_chain = swap_chain,
             .swap_chain_desc = swap_chain_desc,
             .pipeline = pipeline,
             .vertex_buffer = vertex_buffer,
             .index_buffer = index_buffer,
+            .texture = texture,
+            .texture_data_layout = data_layout,
+            .bind_group = bind_group,
         };
     }
     fn errorCallback(error_code: glfw.ErrorCode, description: [:0]const u8) void {
@@ -252,9 +355,10 @@ pub const Platform = struct {
 
         pass.setPipeline(self.pipeline);
 
+        pass.setBindGroup(0, self.bind_group, &.{});
         pass.setVertexBuffer(0, self.vertex_buffer, 0, @sizeOf(Vertex) * vertices.len);
         pass.setIndexBuffer(self.index_buffer, .uint16, 0, @sizeOf(u16) * indices.len);
-        // pass.draw(vertices.len, 1, 0, 0);
+
         pass.drawIndexed(
             indices.len,
             1, // instance_count
@@ -278,8 +382,18 @@ pub const Platform = struct {
         _ = self;
     }
 };
+
 inline fn roundToMultipleOf4(comptime T: type, value: T) T {
     return (value + 3) & ~@as(T, 3);
+}
+
+fn rgb24ToRgba32(allocator: Allocator, in: []zigimg.color.Rgb24) !zigimg.color.PixelStorage {
+    const out = try zigimg.color.PixelStorage.init(allocator, .rgba32, in.len);
+    var i: usize = 0;
+    while (i < in.len) : (i += 1) {
+        out.rgba32[i] = zigimg.color.Rgba32{ .r = in[i].r, .g = in[i].g, .b = in[i].b, .a = 255 };
+    }
+    return out;
 }
 
 test "graphics" {
