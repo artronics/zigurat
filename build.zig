@@ -33,6 +33,12 @@ pub fn build(b: *std.Build) void {
     }).builder, lib);
     lib.addModule("glfw", glfw_dep.module("mach-glfw"));
 
+    // ZIGIMG
+    const zigimg_dep = b.dependency("zigimg", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     b.installArtifact(lib);
 
     const module = b.addModule("zigurat", .{
@@ -40,6 +46,7 @@ pub fn build(b: *std.Build) void {
         .dependencies = &.{
             .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
             .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
+            .{ .name = "zigimg", .module = zigimg_dep.module("zigimg") },
         },
     });
 

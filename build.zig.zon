@@ -14,8 +14,12 @@
             .hash = "12204779ba2f14b46f569110f774d5c3f48b7a105b6717e668bc410710bceae62072",
         },
         .mach_gpu = .{
-            .url = "https://github.com/artronics/mach-gpu/archive/eb2e4de6120f80c2699bfcfad57134078b552b31.tar.gz",
-            .hash = "1220d225bd38eaaf1acfd93c8b6937f1faf8d33721f41f683933cb046ea45cc08036",
+            .url = "https://github.com/artronics/mach-gpu/archive/cb6b9261f860258c27aa793e02c7cc5a603c6c8f.tar.gz",
+            .hash = "12206393b60948ef11fcba55b940b3b5d3cbe109ce9d6544ac44fcd11370041128a5",
+        },
+        .zigimg = .{
+            .url = "https://github.com/zigimg/zigimg/archive/b269e44d8162abfa4e36a372136e53958dd62b12.tar.gz",
+            .hash = "12203ee2ea8bd9593f3f27a0d8b3253f76a0c2f97d0476925083abf4f703d8ef4310",
         },
     },
 }
