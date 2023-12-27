@@ -1,6 +1,6 @@
 struct VertexInput {
-    @location(0) pos: vec3<f32>,
-    @location(1) col: vec3<f32>,
+    @location(0) position: vec3<f32>,
+    @location(1) color: vec3<f32>,
 }
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -22,9 +22,9 @@ fn vs_main(model: VertexInput) -> VertexOutput {
     // );
 
     var out: VertexOutput;
-    out.clip_position = vec4<f32>(model.pos, 1.0);
+    out.clip_position = vec4<f32>(model.position, 1.0);
     // out.vert_pos = out.clip_position.xyz;
-    out.color = model.col;
+    out.color = model.color;
 
     return out;
 }

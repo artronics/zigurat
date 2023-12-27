@@ -8,12 +8,12 @@ const objc = @import("objc_message.zig");
 const util = @import("util.zig");
 
 pub const Vertex = extern struct {
-    pos: @Vector(3, f32),
-    col: @Vector(3, f32),
+    position: @Vector(3, f32),
+    color: @Vector(3, f32),
 
     const attributes = [_]gpu.VertexAttribute{
-        .{ .format = .float32x3, .offset = @offsetOf(Vertex, "pos"), .shader_location = 0 },
-        .{ .format = .float32x3, .offset = @offsetOf(Vertex, "col"), .shader_location = 1 },
+        .{ .format = .float32x3, .offset = @offsetOf(Vertex, "position"), .shader_location = 0 },
+        .{ .format = .float32x3, .offset = @offsetOf(Vertex, "color"), .shader_location = 1 },
     };
 
     pub fn desc() gpu.VertexBufferLayout {
@@ -25,10 +25,21 @@ pub const Vertex = extern struct {
     }
 };
 const vertices = [_]Vertex{
-    Vertex{ .pos = [_]f32{ 0.0, 0.5, 0.0 }, .col = [_]f32{ 1.0, 0.0, 0.0 } },
-    Vertex{ .pos = [_]f32{ -0.5, -0.5, 0.0 }, .col = [_]f32{ 0.0, 1.0, 0.0 } },
-    Vertex{ .pos = [_]f32{ 0.5, -0.5, 0.0 }, .col = [_]f32{ 0.0, 0.0, 1.0 } },
+    // Vertex{ .position = [_]f32{ 0.0, 0.5, 0.0 }, .color = [_]f32{ 1.0, 0.0, 0.0 } },
+    // Vertex{ .position = [_]f32{ -0.5, -0.5, 0.0 }, .color = [_]f32{ 0.0, 1.0, 0.0 } },
+    // Vertex{ .position = [_]f32{ 0.5, -0.5, 0.0 }, .color = [_]f32{ 0.0, 0.0, 1.0 } },
+    Vertex{ .position = [_]f32{ -0.0868241, 0.49240386, 0.0 }, .color = [_]f32{ 0.5, 0.0, 0.5 } }, // A
+    Vertex{ .position = [_]f32{ -0.49513406, 0.06958647, 0.0 }, .color = [_]f32{ 0.5, 0.0, 0.5 } }, // B
+    Vertex{ .position = [_]f32{ -0.21918549, -0.44939706, 0.0 }, .color = [_]f32{ 0.5, 0.0, 0.5 } }, // C
+    Vertex{ .position = [_]f32{ 0.35966998, -0.3473291, 0.0 }, .color = [_]f32{ 0.5, 0.0, 0.5 } }, // D
+    Vertex{ .position = [_]f32{ 0.44147372, 0.2347359, 0.0 }, .color = [_]f32{ 0.5, 0.0, 0.5 } }, // E
 };
+const indices = [_]u16{
+    0, 1, 4,
+    1, 2, 4,
+    2, 3, 4,
+};
+
 pub const Platform = struct {
     allocator: Allocator,
     instance: *gpu.Instance,
@@ -41,6 +52,7 @@ pub const Platform = struct {
     pipeline: *gpu.RenderPipeline,
     window: glfw.Window,
     vertex_buffer: *gpu.Buffer,
+    index_buffer: *gpu.Buffer,
 
     const Self = @This();
 
@@ -143,6 +155,7 @@ pub const Platform = struct {
             .bind_group_layouts = &.{},
         }));
 
+        // vertex buffer
         const vertex_buffer = device.?.createBuffer(&.{
             .usage = .{ .vertex = true },
             .size = @sizeOf(Vertex) * vertices.len,
@@ -151,6 +164,20 @@ pub const Platform = struct {
         const vertex_mapped = vertex_buffer.getMappedRange(Vertex, 0, vertices.len);
         @memcpy(vertex_mapped.?, vertices[0..]);
         vertex_buffer.unmap();
+
+        // index buffer
+        const index_buffer = device.?.createBuffer(&.{
+            .usage = .{ .index = true },
+            .size = roundToMultipleOf4(u64, @sizeOf(u16) * indices.len),
+            .mapped_at_creation = .true,
+        });
+        const index_mapped = index_buffer.getMappedRange(u16, 0, indices.len);
+        @memcpy(index_mapped.?, indices[0..]);
+        index_buffer.unmap();
+
+        // const vertex_mapped = index_buffer.getMappedRange(Vertex, 0, vertices.len);
+        // @memcpy(vertex_mapped.?, vertices[0..]);
+        // index_buffer.unmap();
 
         const primitive = gpu.PrimitiveState{
             .topology = .triangle_list,
@@ -190,6 +217,7 @@ pub const Platform = struct {
             .swap_chain_desc = swap_chain_desc,
             .pipeline = pipeline,
             .vertex_buffer = vertex_buffer,
+            .index_buffer = index_buffer,
         };
     }
     fn errorCallback(error_code: glfw.ErrorCode, description: [:0]const u8) void {
@@ -225,7 +253,16 @@ pub const Platform = struct {
         pass.setPipeline(self.pipeline);
 
         pass.setVertexBuffer(0, self.vertex_buffer, 0, @sizeOf(Vertex) * vertices.len);
-        pass.draw(vertices.len, 1, 0, 0);
+        pass.setIndexBuffer(self.index_buffer, .uint16, 0, @sizeOf(u16) * indices.len);
+        // pass.draw(vertices.len, 1, 0, 0);
+        pass.drawIndexed(
+            indices.len,
+            1, // instance_count
+            0, // first_index
+            0, // base_vertex
+            0, // first_instance
+        );
+
         pass.end();
         pass.release();
 
@@ -241,6 +278,9 @@ pub const Platform = struct {
         _ = self;
     }
 };
+inline fn roundToMultipleOf4(comptime T: type, value: T) T {
+    return (value + 3) & ~@as(T, 3);
+}
 
 test "graphics" {
     const a = testing.allocator;
