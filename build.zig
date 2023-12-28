@@ -39,13 +39,20 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const platform_dep = b.addModule("platform", .{
+        .source_file = .{ .path = "src/platform/platform.zig" },
+        .dependencies = &.{
+            .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
+            .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
+        },
+    });
+
     b.installArtifact(lib);
 
     const module = b.addModule("zigurat", .{
         .source_file = .{ .path = "src/main.zig" },
         .dependencies = &.{
-            .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
-            .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
+            .{ .name = "platform", .module = platform_dep },
             .{ .name = "zigimg", .module = zigimg_dep.module("zigimg") },
         },
     });
@@ -120,6 +127,15 @@ fn addTest(b: *std.Build, comptime name: []const u8, optimize: std.builtin.Optim
         .optimize = optimize,
     });
     unit_tests.addModule("zigimg", zigimg_dep.module("zigimg"));
+
+    const platform_dep = b.addModule("platform", .{
+        .source_file = .{ .path = "src/platform/mock_platform.zig" },
+        .dependencies = &.{
+            .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
+            .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
+        },
+    });
+    unit_tests.addModule("platform", platform_dep);
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const test_step = b.step("test-" ++ name, "Run " ++ name ++ "tests");

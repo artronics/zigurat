@@ -18,6 +18,7 @@ pub const WgpuBackend = struct {
     device: *gpu.Device,
     swap_chain: *gpu.SwapChain,
     surface: *gpu.Surface,
+    queue: *gpu.Queue,
 
     pub fn init(allocator: Allocator, options: backend.Options) !Self {
         try gpu.Impl.init(allocator, .{});
@@ -143,6 +144,7 @@ pub const WgpuBackend = struct {
             .device = gpu_device,
             .swap_chain = swap_chain,
             .surface = surface,
+            .queue = gpu_device.getQueue(),
         };
     }
 
