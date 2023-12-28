@@ -8,6 +8,7 @@ pub fn main() !void {
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    const b = try zt.Platform.init(allocator);
-    try b.run();
+    const b = try zt.Renderer.init(allocator, .{});
+    _ = b;
+    // try b.run();
 }

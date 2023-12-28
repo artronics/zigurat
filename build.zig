@@ -81,7 +81,8 @@ pub fn build(b: *std.Build) void {
 
     // Tests
     addTest(b, "main", optimize, target);
-    addTest(b, "graphics", optimize, target);
+    addTest(b, "platform/platform", optimize, target);
+    addTest(b, "graphics/graphics", optimize, target);
 }
 
 fn addTest(b: *std.Build, comptime name: []const u8, optimize: std.builtin.OptimizeMode, target: std.zig.CrossTarget) void {
@@ -112,6 +113,13 @@ fn addTest(b: *std.Build, comptime name: []const u8, optimize: std.builtin.Optim
         .target = target,
         .optimize = optimize,
     }).builder, unit_tests, .{}) catch unreachable;
+
+    // ZIGIMG
+    const zigimg_dep = b.dependency("zigimg", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    unit_tests.addModule("zigimg", zigimg_dep.module("zigimg"));
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const test_step = b.step("test-" ++ name, "Run " ++ name ++ "tests");

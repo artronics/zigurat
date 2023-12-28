@@ -29,9 +29,17 @@
                 "kind": "test",
             }
         },{
-            "label": "run graphics tests",
+            "label": "run native tests",
             "type": "shell",
-            "command": "${env:HOME}/.local/bin/zig test -femit-bin=${workspaceFolder}/zig-out/graphics-test ${workspaceFolder}/src/graphics.zig",
+            "command": "${env:HOME}/.local/bin/zig test -femit-bin=${workspaceFolder}/zig-out/native-test ${workspaceFolder}/src/platform/native.zig",
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+            }
+        },{
+            "label": "run graphics/graphics tests",
+            "type": "shell",
+            "command": "${env:HOME}/.local/bin/zig build test-graphics/graphics",
             "problemMatcher": [],
             "group": {
                 "kind": "test",
