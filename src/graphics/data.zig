@@ -1,14 +1,14 @@
 const gpu = @import("platform").gpu;
 
 pub const Vertex = struct {
-    pos: @Vector(2, f32),
+    position: @Vector(2, f32),
     uv: @Vector(2, f32),
-    col: @Vector(4, u8),
+    color: @Vector(4, f32),
 
     const attributes = [_]gpu.VertexAttribute{
-        .{ .format = .float32x3, .offset = @offsetOf(Vertex, "pos"), .shader_location = 0 },
+        .{ .format = .float32x2, .offset = @offsetOf(Vertex, "position"), .shader_location = 0 },
         .{ .format = .float32x2, .offset = @offsetOf(Vertex, "uv"), .shader_location = 1 },
-        .{ .format = .float32x3, .offset = @offsetOf(Vertex, "col"), .shader_location = 2 },
+        .{ .format = .float32x4, .offset = @offsetOf(Vertex, "color"), .shader_location = 2 },
     };
 
     pub fn desc() gpu.VertexBufferLayout {
@@ -18,4 +18,9 @@ pub const Vertex = struct {
             .attributes = &attributes,
         });
     }
+};
+
+pub const Uniforms = packed struct {
+    mvp: [4][4]f32,
+    gama: f32,
 };

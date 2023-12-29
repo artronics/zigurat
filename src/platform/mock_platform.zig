@@ -3,8 +3,9 @@ const native = @import("native.zig");
 const backend = @import("backend.zig");
 const plt = @import("platform.zig");
 
-// Exports
+// TODO: This was added to mock gpu; but it requires a lot of work to stub everything. It's unused
 
+// Exports
 pub const DawnInterface = gpu.dawn.Interface;
 pub const WindowOptions = backend.Options;
 pub const Backend = MockPlatform.MockBackend;
