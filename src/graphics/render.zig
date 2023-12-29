@@ -5,6 +5,8 @@ const Backend = platform.Backend;
 const gpu = platform.gpu;
 const data = @import("data.zig");
 const Vertex = data.Vertex;
+const Uniforms = data.Uniforms;
+const RenderData = data.RenderData;
 
 const testing = std.testing;
 
@@ -13,6 +15,8 @@ pub const Renderer = struct {
 
     allocator: Allocator,
     backend: *Backend,
+    common_bind_group: *gpu.BindGroup,
+    data: RenderData,
     pipeline: *gpu.RenderPipeline,
 
     pub fn init(allocator: Allocator, win_options: platform.WindowOptions) !Self {
@@ -26,10 +30,23 @@ pub const Renderer = struct {
         defer fs_mod.release();
 
         const pipeline = createPipeline(backend.device, vs_mod, fs_mod);
+        const render_data = RenderData.init(backend.device);
+
+        const common_bg_layout0 = pipeline.getBindGroupLayout(0);
+        const common_bg = backend.device.createBindGroup(&gpu.BindGroup.Descriptor.init(.{
+            .layout = common_bg_layout0,
+            .entries = &.{
+                gpu.BindGroup.Entry.buffer(0, render_data.uniforms_buffer, 0, @sizeOf(Uniforms)),
+                gpu.BindGroup.Entry.sampler(1, render_data.sampler),
+            },
+        }));
+        // TODO: Create texture view for fonts
 
         return .{
             .allocator = allocator,
             .backend = backend,
+            .common_bind_group = common_bg,
+            .data = render_data,
             .pipeline = pipeline,
         };
     }
@@ -38,7 +55,9 @@ pub const Renderer = struct {
         self.backend.deinit();
         // why test doesn't catch the memory leak? Commenting the line below wouldn't catch the leak!
         self.allocator.destroy(self.backend);
+        self.common_bind_group.release();
         self.pipeline.release();
+        self.data.deinit();
     }
 };
 
@@ -80,8 +99,8 @@ fn createPipeline(device: *gpu.Device, vs_mod: *gpu.ShaderModule, fs_mod: *gpu.S
     const bg_layout_0 = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
         .label = "Common BindGroup0 Layout",
         .entries = &.{
-            // FIXME: find out unifom size, it's set to 8
-            gpu.BindGroupLayout.Entry.buffer(0, .{ .vertex = true, .fragment = true }, .uniform, false, 8),
+            // FIXME: Is the sizeOf Uniform correct for min_binding_size?
+            gpu.BindGroupLayout.Entry.buffer(0, .{ .vertex = true, .fragment = true }, .uniform, false, @sizeOf(Uniforms)),
             gpu.BindGroupLayout.Entry.sampler(1, .{ .fragment = true }, .filtering),
         },
     }));
