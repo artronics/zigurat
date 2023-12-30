@@ -28,6 +28,8 @@ pub const Uniforms = extern struct {
 pub const RenderData = struct {
     // TODO: move layout, desc and bg(?) here
     const Self = @This();
+    const vertex_size_init = 10000;
+    const index_size_init = 10000;
 
     device: *gpu.Device,
 
@@ -36,8 +38,8 @@ pub const RenderData = struct {
     uniforms_buffer: *gpu.Buffer,
     sampler: *gpu.Sampler,
 
-    const index_size = 10000;
-    const vertex_size = 10000;
+    vertex_size: u32 = vertex_size_init,
+    index_size: u32 = index_size_init,
 
     pub fn init(device: *gpu.Device) Self {
         const uniforms_buf = device.createBuffer(&.{
@@ -47,12 +49,12 @@ pub const RenderData = struct {
         });
         const vertex_buf = device.createBuffer(&.{
             .usage = .{ .copy_dst = true, .vertex = true },
-            .size = @sizeOf(Vertex) * vertex_size,
+            .size = @sizeOf(Vertex) * vertex_size_init,
             .mapped_at_creation = .false,
         });
         const index_buf = device.createBuffer(&.{
             .usage = .{ .copy_dst = true, .index = true },
-            .size = roundToMultipleOf4(u64, @sizeOf(u16) * index_size),
+            .size = roundToMultipleOf4(u64, @sizeOf(u16) * index_size_init),
             .mapped_at_creation = .false,
         });
         const sampler = device.createSampler(&.{

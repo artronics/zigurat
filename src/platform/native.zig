@@ -18,7 +18,7 @@ pub const WgpuBackend = struct {
     device: *gpu.Device,
     swap_chain: *gpu.SwapChain,
     surface: *gpu.Surface,
-    queue: *const gpu.Queue,
+    queue: *gpu.Queue,
 
     pub fn init(allocator: Allocator, options: backend.Options) !Self {
         try gpu.Impl.init(allocator, .{});
@@ -155,6 +155,11 @@ pub const WgpuBackend = struct {
         self.swap_chain.release();
         self.surface.release();
         // TODO: release window here?
+    }
+
+    pub fn pollEvents(self: Self) void {
+        _ = self;
+        glfw.pollEvents();
     }
 };
 

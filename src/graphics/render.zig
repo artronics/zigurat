@@ -51,6 +51,60 @@ pub const Renderer = struct {
         };
     }
 
+    // TODO: remove this
+    pub fn run(self: Self) void {
+        while (!self.backend.window.shouldClose()) {
+            self.render();
+            std.time.sleep(16 * std.time.ns_per_ms);
+        }
+    }
+    pub fn render(self: Self) void {
+        self.backend.pollEvents();
+        self.backend.device.tick();
+
+        const back_buffer_view = self.backend.swap_chain.getCurrentTextureView().?;
+        defer back_buffer_view.release();
+        const color_attachment = gpu.RenderPassColorAttachment{
+            .view = back_buffer_view,
+            .resolve_target = null,
+            // .clear_value = std.mem.zeroes(gpu.Color),
+            .clear_value = gpu.Color{ .r = 0.1, .g = 0.2, .b = 0.3, .a = 1.0 },
+            .load_op = .clear,
+            .store_op = .store,
+        };
+
+        const encoder = self.backend.device.createCommandEncoder(null);
+        defer encoder.release();
+        const render_pass_info = gpu.RenderPassDescriptor.init(.{
+            .color_attachments = &.{color_attachment},
+        });
+
+        const pass = encoder.beginRenderPass(&render_pass_info);
+        defer pass.release();
+
+        pass.setPipeline(self.pipeline);
+
+        pass.setBindGroup(0, self.common_bind_group, &.{});
+        pass.setVertexBuffer(0, self.data.vertex_buffer, 0, @sizeOf(Vertex) * self.data.vertex_size);
+        pass.setIndexBuffer(self.data.index_buffer, .uint16, 0, @sizeOf(u16) * self.data.index_size);
+
+        pass.drawIndexed(
+            self.data.index_size,
+            1, // instance_count
+            0, // first_index
+            0, // base_vertex
+            0, // first_instance
+        );
+
+        pass.end();
+
+        var command = encoder.finish(null);
+        defer command.release();
+
+        self.backend.queue.submit(&[_]*gpu.CommandBuffer{command});
+        self.backend.swap_chain.present();
+    }
+
     pub fn deinit(self: Self) void {
         self.backend.deinit();
         // why test doesn't catch the memory leak? Commenting the line below wouldn't catch the leak!
@@ -96,7 +150,7 @@ fn createPipeline(device: *gpu.Device, vs_mod: *gpu.ShaderModule, fs_mod: *gpu.S
 
     const depth_stencil = null;
 
-    const bg_layout_0 = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
+    const common_bg_layout0 = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
         .label = "Common BindGroup0 Layout",
         .entries = &.{
             // FIXME: Is the sizeOf Uniform correct for min_binding_size?
@@ -104,19 +158,20 @@ fn createPipeline(device: *gpu.Device, vs_mod: *gpu.ShaderModule, fs_mod: *gpu.S
             gpu.BindGroupLayout.Entry.sampler(1, .{ .fragment = true }, .filtering),
         },
     }));
-    defer bg_layout_0.release();
-    const bg_layout_1 = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
-        .label = "Image BindGroup1 Layout",
-        .entries = &.{
-            gpu.BindGroupLayout.Entry.texture(0, .{ .fragment = true }, .float, .dimension_2d, false),
-        },
-    }));
-    defer bg_layout_1.release();
+    defer common_bg_layout0.release();
+    // const image_bg_layout1 = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
+    //     .label = "Image BindGroup1 Layout",
+    //     .entries = &.{
+    //         gpu.BindGroupLayout.Entry.texture(0, .{ .fragment = true }, .float, .dimension_2d, false),
+    //     },
+    // }));
+    // defer image_bg_layout1.release();
 
     const pipeline_layout = device.createPipelineLayout(&gpu.PipelineLayout.Descriptor.init(
         .{
             .label = "Binding Layouts",
-            .bind_group_layouts = &.{ bg_layout_0, bg_layout_1 },
+            // .bind_group_layouts = &.{ common_bg_layout0, image_bg_layout1 },
+            .bind_group_layouts = &.{common_bg_layout0},
         },
     ));
 

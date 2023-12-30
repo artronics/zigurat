@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const testing = std.testing;
-const gfx = @import("platform/native.zig");
+const gfx = @import("graphics");
 const expect = testing.expect;
 
 const WindowOptions = struct {
