@@ -1,10 +1,8 @@
 const std = @import("std");
-const platform = @import("platform");
-const gfx = @import("graphics/graphics.zig");
+const gfx = @import("graphics");
 
-pub const DawnInterface = platform.DawnInterface;
+pub const DawnInterface = gfx.DawnInterface;
 
-pub const WindowOptions = platform.WindowOptions;
 pub const Renderer = gfx.Renderer;
 
 test {

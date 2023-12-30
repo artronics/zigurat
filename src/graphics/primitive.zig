@@ -8,3 +8,7 @@ const data: RenderData = undefined;
 pub fn init(_data: RenderData) void {
     data = _data;
 }
+
+pub fn rect(self: Self) void {
+    self.data;
+}

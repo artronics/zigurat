@@ -50,12 +50,12 @@ pub const RenderData = struct {
         const vertex_buf = device.createBuffer(&.{
             .usage = .{ .copy_dst = true, .vertex = true },
             .size = @sizeOf(Vertex) * vertex_size_init,
-            .mapped_at_creation = .false,
+            .mapped_at_creation = .true,
         });
         const index_buf = device.createBuffer(&.{
             .usage = .{ .copy_dst = true, .index = true },
             .size = roundToMultipleOf4(u64, @sizeOf(u16) * index_size_init),
-            .mapped_at_creation = .false,
+            .mapped_at_creation = .true,
         });
         const sampler = device.createSampler(&.{
             .min_filter = .linear,
@@ -82,6 +82,28 @@ pub const RenderData = struct {
         self.index_buffer.release();
         self.uniforms_buffer.release();
         self.sampler.release();
+    }
+
+    const red = [_]f32{ 1.0, 0.0, 0.0, 1.0 };
+    const uv = [_]f32{ 0.0, 0.0 };
+    const vertices = [_]Vertex{
+        .{ .position = .{ -0.5, 0.5 }, .uv = uv, .color = red },
+        .{ .position = .{ 0.5, 0.5 }, .uv = uv, .color = red },
+        .{ .position = .{ 0.5, -0.5 }, .uv = uv, .color = red },
+        .{ .position = .{ -0.5, -0.5 }, .uv = uv, .color = red },
+    };
+    const indices = [_]u16{
+        0, 1, 3,
+        1, 2, 3,
+    };
+    pub fn draw(self: Self) void {
+        const vertex_mapped = self.vertex_buffer.getMappedRange(Vertex, 0, vertices.len);
+        @memcpy(vertex_mapped.?, vertices[0..]);
+        self.vertex_buffer.unmap();
+
+        const index_mapped = self.index_buffer.getMappedRange(u16, 0, indices.len);
+        @memcpy(index_mapped.?, indices[0..]);
+        self.index_buffer.unmap();
     }
 };
 

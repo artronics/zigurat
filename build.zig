@@ -39,11 +39,17 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const platform_dep = b.addModule("platform", .{
+    const platform_mod = b.addModule("platform", .{
         .source_file = .{ .path = "src/platform/platform.zig" },
         .dependencies = &.{
             .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
             .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
+        },
+    });
+    const graphics_mod = b.addModule("graphics", .{
+        .source_file = .{ .path = "src/graphics/graphics.zig" },
+        .dependencies = &.{
+            .{ .name = "platform", .module = platform_mod },
         },
     });
 
@@ -52,7 +58,7 @@ pub fn build(b: *std.Build) void {
     const module = b.addModule("zigurat", .{
         .source_file = .{ .path = "src/main.zig" },
         .dependencies = &.{
-            .{ .name = "platform", .module = platform_dep },
+            .{ .name = "graphics", .module = graphics_mod },
             .{ .name = "zigimg", .module = zigimg_dep.module("zigimg") },
         },
     });

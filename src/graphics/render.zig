@@ -32,6 +32,8 @@ pub const Renderer = struct {
         const pipeline = createPipeline(backend.device, vs_mod, fs_mod);
         const render_data = RenderData.init(backend.device);
 
+        render_data.draw();
+
         const common_bg_layout0 = pipeline.getBindGroupLayout(0);
         const common_bg = backend.device.createBindGroup(&gpu.BindGroup.Descriptor.init(.{
             .layout = common_bg_layout0,
@@ -67,7 +69,6 @@ pub const Renderer = struct {
         const color_attachment = gpu.RenderPassColorAttachment{
             .view = back_buffer_view,
             .resolve_target = null,
-            // .clear_value = std.mem.zeroes(gpu.Color),
             .clear_value = gpu.Color{ .r = 0.1, .g = 0.2, .b = 0.3, .a = 1.0 },
             .load_op = .clear,
             .store_op = .store,
@@ -150,7 +151,7 @@ fn createPipeline(device: *gpu.Device, vs_mod: *gpu.ShaderModule, fs_mod: *gpu.S
 
     const depth_stencil = null;
 
-    const common_bg_layout0 = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
+    const common_bg0_layout = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
         .label = "Common BindGroup0 Layout",
         .entries = &.{
             // FIXME: Is the sizeOf Uniform correct for min_binding_size?
@@ -158,20 +159,20 @@ fn createPipeline(device: *gpu.Device, vs_mod: *gpu.ShaderModule, fs_mod: *gpu.S
             gpu.BindGroupLayout.Entry.sampler(1, .{ .fragment = true }, .filtering),
         },
     }));
-    defer common_bg_layout0.release();
-    // const image_bg_layout1 = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
+    defer common_bg0_layout.release();
+    // const image_bg1_layout = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
     //     .label = "Image BindGroup1 Layout",
     //     .entries = &.{
     //         gpu.BindGroupLayout.Entry.texture(0, .{ .fragment = true }, .float, .dimension_2d, false),
     //     },
     // }));
-    // defer image_bg_layout1.release();
+    // defer image_bg1_layout.release();
 
     const pipeline_layout = device.createPipelineLayout(&gpu.PipelineLayout.Descriptor.init(
         .{
             .label = "Binding Layouts",
-            // .bind_group_layouts = &.{ common_bg_layout0, image_bg_layout1 },
-            .bind_group_layouts = &.{common_bg_layout0},
+            // .bind_group_layouts = &.{ common_bg_layout0, image_bg1_layout },
+            .bind_group_layouts = &.{common_bg0_layout},
         },
     ));
 
