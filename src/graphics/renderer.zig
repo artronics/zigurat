@@ -3,10 +3,11 @@ const Allocator = std.mem.Allocator;
 const platform = @import("platform");
 const Backend = platform.Backend;
 const gpu = platform.gpu;
-const data = @import("data.zig");
-const Vertex = data.Vertex;
-const Uniforms = data.Uniforms;
-const RenderData = data.RenderData;
+const pm = @import("primitive.zig");
+const Vertex = pm.Vertex;
+const Uniforms = pm.Uniforms;
+const _frame = @import("frame.zig");
+const Frame = _frame.Frame;
 
 const testing = std.testing;
 
@@ -16,7 +17,7 @@ pub const Renderer = struct {
     allocator: Allocator,
     backend: *Backend,
     common_bind_group: *gpu.BindGroup,
-    data: RenderData,
+    frame: Frame,
     pipeline: *gpu.RenderPipeline,
 
     pub fn init(allocator: Allocator, win_options: platform.WindowOptions) !Self {
@@ -30,16 +31,16 @@ pub const Renderer = struct {
         defer fs_mod.release();
 
         const pipeline = createPipeline(backend.device, vs_mod, fs_mod);
-        const render_data = RenderData.init(backend.device);
+        const frame = Frame.init(backend.device);
 
-        render_data.draw();
+        frame.draw();
 
         const common_bg_layout0 = pipeline.getBindGroupLayout(0);
         const common_bg = backend.device.createBindGroup(&gpu.BindGroup.Descriptor.init(.{
             .layout = common_bg_layout0,
             .entries = &.{
-                gpu.BindGroup.Entry.buffer(0, render_data.uniforms_buffer, 0, @sizeOf(Uniforms)),
-                gpu.BindGroup.Entry.sampler(1, render_data.sampler),
+                gpu.BindGroup.Entry.buffer(0, frame.uniforms_buffer, 0, @sizeOf(Uniforms)),
+                gpu.BindGroup.Entry.sampler(1, frame.sampler),
             },
         }));
         // TODO: Create texture view for fonts
@@ -48,7 +49,7 @@ pub const Renderer = struct {
             .allocator = allocator,
             .backend = backend,
             .common_bind_group = common_bg,
-            .data = render_data,
+            .frame = frame,
             .pipeline = pipeline,
         };
     }
@@ -86,11 +87,11 @@ pub const Renderer = struct {
         pass.setPipeline(self.pipeline);
 
         pass.setBindGroup(0, self.common_bind_group, &.{});
-        pass.setVertexBuffer(0, self.data.vertex_buffer, 0, @sizeOf(Vertex) * self.data.vertex_size);
-        pass.setIndexBuffer(self.data.index_buffer, .uint16, 0, @sizeOf(u16) * self.data.index_size);
+        pass.setVertexBuffer(0, self.frame.vertex_buffer, 0, @sizeOf(Vertex) * self.frame.vertex_size);
+        pass.setIndexBuffer(self.frame.index_buffer, .uint16, 0, @sizeOf(u16) * self.frame.index_size);
 
         pass.drawIndexed(
-            self.data.index_size,
+            self.frame.index_size,
             1, // instance_count
             0, // first_index
             0, // base_vertex
@@ -112,7 +113,7 @@ pub const Renderer = struct {
         self.allocator.destroy(self.backend);
         self.common_bind_group.release();
         self.pipeline.release();
-        self.data.deinit();
+        self.frame.deinit();
     }
 };
 

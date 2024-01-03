@@ -1,14 +1,53 @@
 const std = @import("std");
-const render_data = @import("data.zig");
-const RenderData = render_data.RenderData;
+const cm = @import("common");
+const gpu = @import("platform").gpu;
 
-const Self = @This();
-const data: RenderData = undefined;
+pub const Vertex = extern struct {
+    position: @Vector(2, f32),
+    uv: @Vector(2, f32),
+    color: @Vector(4, f32),
 
-pub fn init(_data: RenderData) void {
-    data = _data;
-}
+    const attributes = [_]gpu.VertexAttribute{
+        .{ .format = .float32x2, .offset = @offsetOf(Vertex, "position"), .shader_location = 0 },
+        .{ .format = .float32x2, .offset = @offsetOf(Vertex, "uv"), .shader_location = 1 },
+        .{ .format = .float32x4, .offset = @offsetOf(Vertex, "color"), .shader_location = 2 },
+    };
 
-pub fn rect(self: Self) void {
-    self.data;
-}
+    pub fn desc() gpu.VertexBufferLayout {
+        return gpu.VertexBufferLayout.init(.{
+            .array_stride = @sizeOf(Vertex),
+            .step_mode = .vertex,
+            .attributes = &attributes,
+        });
+    }
+};
+
+pub const Uniforms = extern struct {
+    mvp: [4]@Vector(4, f32),
+    gama: f32,
+};
+
+const Queue = u32;
+
+const Rect = struct {
+    a: cm.Point,
+    b: cm.Point,
+    fn addToQueue(r: Rect, queue: Queue) void {
+        _ = queue;
+        _ = r;
+    }
+};
+
+const Primitive = union(enum) {
+    rect: Rect,
+    pub inline fn addToQueue(p: Primitive, queue: u32) void {
+        switch (p) {
+            inline else => |case| case.addToQueue(queue),
+        }
+    }
+};
+
+const DrawCommand = union(enum) {
+    primitive: Primitive,
+    bg_color: cm.Color,
+};

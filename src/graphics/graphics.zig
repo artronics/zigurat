@@ -1,7 +1,7 @@
 const std = @import("std");
-const render = @import("render.zig");
+const renderer = @import("renderer.zig");
 
-pub const Renderer = render.Renderer;
+pub const Renderer = renderer.Renderer;
 pub const Primitive = @import("primitive.zig");
 
 const platform = @import("platform");

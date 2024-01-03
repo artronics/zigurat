@@ -1,9 +1,10 @@
 const std = @import("std");
-const gfx = @import("graphics");
+const ui = @import("ui");
 
-pub const DawnInterface = gfx.DawnInterface;
+pub const DawnInterface = ui.DawnInterface;
 
-pub const Renderer = gfx.Renderer;
+pub const widget = ui.widget;
+pub const Ui = ui.Ui;
 
 test {
     std.testing.refAllDeclsRecursive(@This());
