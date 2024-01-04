@@ -29,25 +29,28 @@ pub const Uniforms = extern struct {
 
 const Queue = u32;
 
-const Rect = struct {
-    a: cm.Point,
-    b: cm.Point,
-    fn addToQueue(r: Rect, queue: Queue) void {
-        _ = queue;
-        _ = r;
-    }
+pub const primitives = struct {
+    pub const Rect = struct {
+        a: cm.Point,
+        b: cm.Point,
+        fn addToQueue(r: Rect, queue: Queue) void {
+            _ = queue;
+            _ = r;
+        }
+    };
 };
 
-const Primitive = union(enum) {
-    rect: Rect,
-    pub inline fn addToQueue(p: Primitive, queue: u32) void {
-        switch (p) {
+pub const Primitive = union(enum) {
+    const p = primitives;
+    rect: p.Rect,
+    pub inline fn addToQueue(pm: Primitive, queue: u32) void {
+        switch (pm) {
             inline else => |case| case.addToQueue(queue),
         }
     }
 };
 
-const DrawCommand = union(enum) {
+pub const DrawCommand = union(enum) {
     primitive: Primitive,
     bg_color: cm.Color,
 };
