@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const platform = @import("platform.zig");
 const gpu = @import("gpu");
-const cm = @import("common");
+const cm = @import("common.zig");
 const Backend = platform.WgpuBackend;
 
 pub const Vertex = extern struct {

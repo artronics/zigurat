@@ -4,7 +4,7 @@ const log = std.log.scoped(.zigurat);
 const glfw = @import("glfw");
 const gpu = @import("gpu");
 // const cm = @import("common.zig");
-const cm = @import("common");
+const cm = @import("common.zig");
 
 pub const WgpuBackend = struct {
     const Self = @This();

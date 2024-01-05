@@ -39,39 +39,13 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const common_mod = b.addModule("common", .{
-        .source_file = .{ .path = "src/common.zig" },
-    });
-    const platform_mod = b.addModule("platform", .{
-        .source_file = .{ .path = "src/platform/platform.zig" },
-        .dependencies = &.{
-            .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
-            .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
-        },
-    });
-    const graphics_mod = b.addModule("graphics", .{
-        .source_file = .{ .path = "src/graphics/graphics.zig" },
-        .dependencies = &.{
-            .{ .name = "common", .module = common_mod },
-            .{ .name = "platform", .module = platform_mod },
-        },
-    });
-    const ui_mod = b.addModule("ui", .{
-        .source_file = .{ .path = "src/ui/ui.zig" },
-        .dependencies = &.{
-            .{ .name = "graphics", .module = graphics_mod },
-        },
-    });
-
     b.installArtifact(lib);
 
     const module = b.addModule("zigurat", .{
         .source_file = .{ .path = "src/main.zig" },
         .dependencies = &.{
-            .{ .name = "ui", .module = ui_mod },
             .{ .name = "zigimg", .module = zigimg_dep.module("zigimg") },
             // flatten
-            .{ .name = "common", .module = common_mod },
             .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
             .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
         },
