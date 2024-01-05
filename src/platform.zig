@@ -6,10 +6,6 @@ const gpu = @import("gpu");
 const d = @import("data.zig");
 
 pub const Options = struct {
-    headless: bool = false,
-    title: [:0]const u8 = "Zigurat",
-    size: d.Size = .{ .width = 1920 / 2, .height = 1080 / 2 },
-
     power_preference: gpu.PowerPreference = .undefined,
     required_features: ?[]const gpu.FeatureName = null,
     required_limits: ?gpu.Limits = null,
@@ -19,10 +15,8 @@ pub const WgpuBackend = struct {
     const Self = @This();
 
     allocator: Allocator,
-    window: glfw.Window,
+    instance: *gpu.Instance,
     device: *gpu.Device,
-    swap_chain: *gpu.SwapChain,
-    surface: *gpu.Surface,
     queue: *gpu.Queue,
 
     pub fn init(allocator: Allocator, options: Options) !Self {
@@ -38,56 +32,14 @@ pub const WgpuBackend = struct {
             };
         }
 
-        // Create the test window and discover adapters using it (esp. for OpenGL)
-        const backend_type = try detectBackendType();
-        var hints = glfwWindowHintsForBackend(backend_type);
-        hints.cocoa_retina_framebuffer = true;
-        if (options.headless) {
-            hints.visible = false; // Hiding window before creation otherwise you get the window showing up for a little bit then hiding.
-        }
-
-        // _ = getMaxRefreshRate(allocator);
-
-        const window = glfw.Window.create(
-            options.size.width,
-            options.size.height,
-            options.title,
-            null,
-            null,
-            hints,
-        ) orelse switch (glfw.mustGetErrorCode()) {
-            error.InvalidEnum,
-            error.InvalidValue,
-            error.FormatUnavailable,
-            => unreachable,
-            error.APIUnavailable,
-            error.VersionUnavailable,
-            error.PlatformError,
-            => |err| return err,
-            else => unreachable,
-        };
-        switch (backend_type) {
-            .opengl, .opengles => {
-                glfw.makeContextCurrent(window);
-                glfw.getErrorCode() catch |err| switch (err) {
-                    error.PlatformError => return err,
-                    else => unreachable,
-                };
-            },
-            else => {},
-        }
-
         const instance = gpu.createInstance(null) orelse {
             std.debug.print("failed to create GPU instance", .{});
             std.process.exit(1);
         };
 
-        const surface = try createSurfaceForWindow(instance, window, comptime detectGLFWOptions());
-
         // Adapter
         var response: RequestAdapterResponse = undefined;
         instance.requestAdapter(&gpu.RequestAdapterOptions{
-            // .compatible_surface = surface,
             .compatible_surface = null,
             .power_preference = options.power_preference,
             .force_fallback_adapter = .false,
@@ -133,35 +85,10 @@ pub const WgpuBackend = struct {
         };
         gpu_device.setUncapturedErrorCallback({}, printUnhandledErrorCallback);
 
-        const framebuffer_size = window.getFramebufferSize();
-        const swap_chain_desc = gpu.SwapChain.Descriptor{
-            .label = "main swap chain",
-            .usage = .{ .render_attachment = true },
-            .format = .bgra8_unorm,
-            .width = framebuffer_size.width,
-            .height = framebuffer_size.height,
-            .present_mode = .mailbox,
-        };
-        const swap_chain = gpu_device.createSwapChain(surface, &swap_chain_desc);
-        // const window_size_callback = struct {
-        //     fn callback(window: glfw.Window, width: i32, height: i32) void {
-        //         const pf = (window.getUserPointer(UserPtr) orelse unreachable).self;
-        //         pf.state_mu.lock();
-        //         defer pf.state_mu.unlock();
-        //         pf.current_size.width = @intCast(width);
-        //         pf.current_size.height = @intCast(height);
-        //         pf.last_size.width = @intCast(width);
-        //         pf.last_size.height = @intCast(height);
-        //     }
-        // }.callback;
-        // self.window.setSizeCallback(window_size_callback);
-
         return .{
             .allocator = allocator,
-            .window = window,
+            .instance = instance,
             .device = gpu_device,
-            .swap_chain = swap_chain,
-            .surface = surface,
             .queue = gpu_device.getQueue(),
         };
     }
@@ -169,10 +96,6 @@ pub const WgpuBackend = struct {
     pub fn deinit(self: Self) void {
         self.device.setDeviceLostCallback(null, null);
         self.device.release();
-
-        self.swap_chain.release();
-        self.surface.release();
-        // TODO: release window here?
     }
 
     pub fn pollEvents(self: Self) void {
@@ -190,26 +113,6 @@ fn deviceLostCallback(reason: gpu.Device.LostReason, msg: [*:0]const u8, userdat
     @panic("GPU device lost");
 }
 
-fn getMaxRefreshRate(allocator: Allocator) u32 {
-    const monitors = try glfw.Monitor.getAll(allocator);
-    defer allocator.free(monitors);
-    var max_refresh_rate: u32 = 0;
-    for (monitors) |monitor| {
-        const video_mode = monitor.getVideoMode() orelse continue;
-        const refresh_rate = video_mode.getRefreshRate();
-        max_refresh_rate = @max(max_refresh_rate, refresh_rate);
-    }
-    if (max_refresh_rate == 0) max_refresh_rate = 60;
-
-    return max_refresh_rate;
-}
-
-test "backend" {
-    const a = std.testing.allocator;
-    const b = try WgpuBackend.init(a);
-    _ = b;
-}
-
 /// GLFW error handling callback
 ///
 /// This only logs errors, and doesn't e.g. exit the application, because many simple operations of
@@ -221,15 +124,6 @@ pub fn errorCallback(error_code: glfw.ErrorCode, description: [:0]const u8) void
     log.err("glfw: {}: {s}\n", .{ error_code, description });
 }
 
-// obj-c
-// Extracted from `zig translate-c tmp.c` with `#include <objc/message.h>` in the file.
-const SEL = opaque {};
-const Class = opaque {};
-
-extern fn sel_getUid(str: [*c]const u8) ?*SEL;
-extern fn objc_getClass(name: [*c]const u8) ?*Class;
-extern fn objc_msgSend() void;
-
 // utils
 inline fn printUnhandledErrorCallback(_: void, typ: gpu.ErrorType, message: [*:0]const u8) void {
     switch (typ) {
@@ -240,20 +134,6 @@ inline fn printUnhandledErrorCallback(_: void, typ: gpu.ErrorType, message: [*:0
         else => unreachable,
     }
     std.os.exit(1);
-}
-
-fn getEnvVarOwned(allocator: std.mem.Allocator, key: []const u8) error{ OutOfMemory, InvalidUtf8 }!?[]u8 {
-    return std.process.getEnvVarOwned(allocator, key) catch |err| switch (err) {
-        error.EnvironmentVariableNotFound => @as(?[]u8, null),
-        else => |e| e,
-    };
-}
-
-fn detectBackendType() !gpu.BackendType {
-    const target = @import("builtin").target;
-    if (target.isDarwin()) return .metal;
-    if (target.os.tag == .windows) return .d3d12;
-    return .vulkan;
 }
 
 const RequestAdapterResponse = struct {
@@ -273,144 +153,4 @@ inline fn requestAdapterCallback(
         .adapter = adapter,
         .message = message,
     };
-}
-
-fn glfwWindowHintsForBackend(backend: gpu.BackendType) glfw.Window.Hints {
-    return switch (backend) {
-        .opengl => .{
-            // Ask for OpenGL 4.4 which is what the GL backend requires for compute shaders and
-            // texture views.
-            .context_version_major = 4,
-            .context_version_minor = 4,
-            .opengl_forward_compat = true,
-            .opengl_profile = .opengl_core_profile,
-        },
-        .opengles => .{
-            .context_version_major = 3,
-            .context_version_minor = 1,
-            .client_api = .opengl_es_api,
-            .context_creation_api = .egl_context_api,
-        },
-        else => .{
-            // Without this GLFW will initialize a GL context on the window, which prevents using
-            // the window with other APIs (by crashing in weird ways).
-            .client_api = .no_api,
-        },
-    };
-}
-
-fn detectGLFWOptions() glfw.BackendOptions {
-    const target = @import("builtin").target;
-    if (target.isDarwin()) return .{ .cocoa = true };
-    return switch (target.os.tag) {
-        .windows => .{ .win32 = true },
-        .linux => .{ .x11 = true, .wayland = true },
-        else => .{},
-    };
-}
-
-fn createSurfaceForWindow(
-    instance: *gpu.Instance,
-    window: glfw.Window,
-    comptime glfw_options: glfw.BackendOptions,
-) !*gpu.Surface {
-    const glfw_native = glfw.Native(glfw_options);
-    if (glfw_options.win32) {
-        return instance.createSurface(&gpu.Surface.Descriptor{
-            .next_in_chain = .{
-                .from_windows_hwnd = &.{
-                    .hinstance = std.os.windows.kernel32.GetModuleHandleW(null).?,
-                    .hwnd = glfw_native.getWin32Window(window),
-                },
-            },
-        });
-    } else if (glfw_options.x11) {
-        return instance.createSurface(&gpu.Surface.Descriptor{
-            .next_in_chain = .{
-                .from_xlib_window = &.{
-                    .display = glfw_native.getX11Display(),
-                    .window = glfw_native.getX11Window(window),
-                },
-            },
-        });
-    } else if (glfw_options.wayland) {
-        return instance.createSurface(&gpu.Surface.Descriptor{
-            .next_in_chain = .{
-                .from_wayland_surface = &.{
-                    .display = glfw_native.getWaylandDisplay(),
-                    .surface = glfw_native.getWaylandWindow(window),
-                },
-            },
-        });
-    } else if (glfw_options.cocoa) {
-        const pool = try AutoReleasePool.init();
-        defer AutoReleasePool.release(pool);
-
-        const ns_window = glfw_native.getCocoaWindow(window);
-        const ns_view = msgSend(ns_window, "contentView", .{}, *anyopaque); // [nsWindow contentView]
-
-        // Create a CAMetalLayer that covers the whole window that will be passed to CreateSurface.
-        msgSend(ns_view, "setWantsLayer:", .{true}, void); // [view setWantsLayer:YES]
-        const layer = msgSend(objc_getClass("CAMetalLayer"), "layer", .{}, ?*anyopaque); // [CAMetalLayer layer]
-        if (layer == null) @panic("failed to create Metal layer");
-        msgSend(ns_view, "setLayer:", .{layer.?}, void); // [view setLayer:layer]
-
-        // Use retina if the window was created with retina support.
-        const scale_factor = msgSend(ns_window, "backingScaleFactor", .{}, f64); // [ns_window backingScaleFactor]
-        msgSend(layer.?, "setContentsScale:", .{scale_factor}, void); // [layer setContentsScale:scale_factor]
-
-        return instance.createSurface(&gpu.Surface.Descriptor{
-            .next_in_chain = .{
-                .from_metal_layer = &.{ .layer = layer.? },
-            },
-        });
-    } else unreachable;
-}
-
-const AutoReleasePool = if (!@import("builtin").target.isDarwin()) opaque {
-    fn init() error{OutOfMemory}!?*AutoReleasePool {
-        return null;
-    }
-
-    fn release(pool: ?*AutoReleasePool) void {
-        _ = pool;
-        return;
-    }
-} else opaque {
-    fn init() error{OutOfMemory}!?*AutoReleasePool {
-        // pool = [NSAutoreleasePool alloc];
-        var pool = msgSend(objc_getClass("NSAutoreleasePool"), "alloc", .{}, ?*AutoReleasePool);
-        if (pool == null) return error.OutOfMemory;
-
-        // pool = [pool init];
-        pool = msgSend(pool, "init", .{}, ?*AutoReleasePool);
-        if (pool == null) unreachable;
-
-        return pool;
-    }
-
-    fn release(pool: ?*AutoReleasePool) void {
-        // [pool release];
-        msgSend(pool, "release", .{}, void);
-    }
-};
-
-// Borrowed from https://github.com/hazeycode/zig-objcrt
-fn msgSend(obj: anytype, sel_name: [:0]const u8, args: anytype, comptime ReturnType: type) ReturnType {
-    const args_meta = @typeInfo(@TypeOf(args)).Struct.fields;
-
-    const FnType = switch (args_meta.len) {
-        0 => *const fn (@TypeOf(obj), ?*SEL) callconv(.C) ReturnType,
-        1 => *const fn (@TypeOf(obj), ?*SEL, args_meta[0].type) callconv(.C) ReturnType,
-        2 => *const fn (@TypeOf(obj), ?*SEL, args_meta[0].type, args_meta[1].type) callconv(.C) ReturnType,
-        3 => *const fn (@TypeOf(obj), ?*SEL, args_meta[0].type, args_meta[1].type, args_meta[2].type) callconv(.C) ReturnType,
-        4 => *const fn (@TypeOf(obj), ?*SEL, args_meta[0].type, args_meta[1].type, args_meta[2].type, args_meta[3].type) callconv(.C) ReturnType,
-        else => @compileError("Unsupported number of args"),
-    };
-
-    // NOTE: func is a var because making it const causes a compile error which I believe is a compiler bug
-    const func = @as(FnType, @ptrCast(&objc_msgSend));
-    const sel = sel_getUid(@as([*c]const u8, @ptrCast(sel_name)));
-
-    return @call(.auto, func, .{ obj, sel } ++ args);
 }

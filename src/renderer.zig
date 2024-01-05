@@ -2,6 +2,8 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const platform = @import("platform.zig");
 const gpu = @import("gpu");
+const win = @import("window.zig");
+const Window = win.Window;
 const data = @import("data.zig");
 const Vertex = data.Vertex;
 const Uniforms = data.Uniforms;
@@ -13,12 +15,14 @@ pub const Renderer = struct {
     const Self = @This();
 
     allocator: Allocator,
-    backend: Backend,
+    backend: *const Backend,
+    window: *const Window,
     common_bind_group: *gpu.BindGroup,
     frame: Frame,
     pipeline: *gpu.RenderPipeline,
 
-    pub fn init(allocator: Allocator, backend: Backend) Self {
+    // Client owns the backend but NOT the window. Window will be destroyed upon deinit
+    pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window) Self {
         const shader = @embedFile("shader.wgsl");
         const vs_mod = backend.device.createShaderModuleWGSL("Vertex Shader", shader);
         defer vs_mod.release();
@@ -43,13 +47,14 @@ pub const Renderer = struct {
         return .{
             .allocator = allocator,
             .backend = backend,
+            .window = window,
             .common_bind_group = common_bg,
             .frame = frame,
             .pipeline = pipeline,
         };
     }
     pub fn deinit(self: Self) void {
-        self.backend.deinit();
+        self.window.deinit();
         self.common_bind_group.release();
         self.pipeline.release();
         self.frame.deinit();
@@ -57,7 +62,7 @@ pub const Renderer = struct {
 
     // TODO: remove this
     pub fn run(self: Self) void {
-        while (!self.backend.window.shouldClose()) {
+        while (!self.window.window.shouldClose()) {
             self.render();
             std.time.sleep(16 * std.time.ns_per_ms);
         }
@@ -66,7 +71,7 @@ pub const Renderer = struct {
         self.backend.pollEvents();
         self.backend.device.tick();
 
-        const back_buffer_view = self.backend.swap_chain.getCurrentTextureView().?;
+        const back_buffer_view = self.window.swap_chain.getCurrentTextureView().?;
         defer back_buffer_view.release();
         const color_attachment = gpu.RenderPassColorAttachment{
             .view = back_buffer_view,
@@ -105,9 +110,8 @@ pub const Renderer = struct {
         defer command.release();
 
         self.backend.queue.submit(&[_]*gpu.CommandBuffer{command});
-        self.backend.swap_chain.present();
+        self.window.swap_chain.present();
     }
-
 };
 
 fn createPipeline(device: *gpu.Device, vs_mod: *gpu.ShaderModule, fs_mod: *gpu.ShaderModule) *gpu.RenderPipeline {

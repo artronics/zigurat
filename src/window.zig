@@ -7,17 +7,17 @@ const Size = data.Size;
 const gpu = @import("gpu");
 const glfw = @import("glfw");
 
-const Options = struct {
+pub const Options = struct {
     headless: bool = false,
     title: [:0]const u8 = "Zigurat",
     size: Size = .{ .width = 1920 / 2, .height = 1080 / 2 },
 };
 
-const Window = struct {
+pub const Window = struct {
     const Self = @This();
 
     allocator: Allocator,
-    backend: *Backend,
+    backend: *const Backend,
     window: glfw.Window,
 
     swap_chain: *gpu.SwapChain,
@@ -25,6 +25,7 @@ const Window = struct {
 
     // Backend is managed by client
     pub fn init(allocator: Allocator, backend: *const Backend, options: Options) !Self {
+        // TODO: is keeping backend necessary? same for allocator
         // Create the test window and discover adapters using it (esp. for OpenGL)
         const backend_type = try detectBackendType();
         var hints = glfwWindowHintsForBackend(backend_type);
@@ -75,11 +76,45 @@ const Window = struct {
 
         return .{
             .allocator = allocator,
+            .backend = backend,
+            .window = window,
             .swap_chain = swap_chain,
             .surface = surface,
         };
     }
+    pub fn deinit(self: Self) void {
+        self.swap_chain.release();
+        self.surface.release();
+    }
+
+    // const window_size_callback = struct {
+    //     fn callback(window: glfw.Window, width: i32, height: i32) void {
+    //         const pf = (window.getUserPointer(UserPtr) orelse unreachable).self;
+    //         pf.state_mu.lock();
+    //         defer pf.state_mu.unlock();
+    //         pf.current_size.width = @intCast(width);
+    //         pf.current_size.height = @intCast(height);
+    //         pf.last_size.width = @intCast(width);
+    //         pf.last_size.height = @intCast(height);
+    //     }
+    // }.callback;
+    // self.window.setSizeCallback(window_size_callback);
+
 };
+
+fn getMaxRefreshRate(allocator: Allocator) u32 {
+    const monitors = try glfw.Monitor.getAll(allocator);
+    defer allocator.free(monitors);
+    var max_refresh_rate: u32 = 0;
+    for (monitors) |monitor| {
+        const video_mode = monitor.getVideoMode() orelse continue;
+        const refresh_rate = video_mode.getRefreshRate();
+        max_refresh_rate = @max(max_refresh_rate, refresh_rate);
+    }
+    if (max_refresh_rate == 0) max_refresh_rate = 60;
+
+    return max_refresh_rate;
+}
 
 fn createSurfaceForWindow(
     instance: *gpu.Instance,
