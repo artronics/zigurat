@@ -1,4 +1,5 @@
 const std = @import("std");
+const Renderer = @import("renderer.zig").Renderer;
 const draw = @import("draw.zig");
 const platform = @import("platform.zig");
 const Allocator = std.mem.Allocator;
@@ -7,11 +8,10 @@ pub const Ui = struct {
     const Self = @This();
 
     allocator: Allocator,
-    renderer: draw.Renderer,
+    renderer: Renderer,
     cmd_queue: draw.CommandQueue,
 
-    pub fn init(allocator: Allocator, win_options: platform.Options) !Self {
-        const renderer = try draw.Renderer.init(allocator, win_options);
+    pub fn init(allocator: Allocator, renderer: Renderer) !Self {
         const cmd_q = draw.CommandQueue.init(allocator);
 
         return .{

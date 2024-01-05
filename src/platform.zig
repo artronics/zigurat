@@ -5,6 +5,21 @@ const glfw = @import("glfw");
 const gpu = @import("gpu");
 const d = @import("data.zig");
 
+pub const Options = struct {
+    pub const DisplayMode = enum {
+        windowed,
+        fullscreen,
+        borderless,
+    };
+    display_mode: DisplayMode = .windowed,
+    headless: bool = false,
+    title: [:0]const u8 = "Zigurat",
+    size: d.Size = .{ .width = 1920 / 2, .height = 1080 / 2 },
+    power_preference: gpu.PowerPreference = .undefined,
+    required_features: ?[]const gpu.FeatureName = null,
+    required_limits: ?gpu.Limits = null,
+};
+
 pub const WgpuBackend = struct {
     const Self = @This();
 
@@ -186,36 +201,6 @@ test "backend" {
     const b = try WgpuBackend.init(a);
     _ = b;
 }
-
-pub const DisplayMode = enum {
-    /// Windowed mode.
-    windowed,
-
-    /// Fullscreen mode, using this option may change the display's video mode.
-    fullscreen,
-
-    /// Borderless fullscreen window.
-    ///
-    /// Beware that true .fullscreen is also a hint to the OS that is used in various contexts, e.g.
-    ///
-    /// * macOS: Moving to a virtual space dedicated to fullscreen windows as the user expects
-    /// * macOS: .borderless windows cannot prevent the system menu bar from being displayed
-    ///
-    /// Always allow users to choose their preferred display mode.
-    borderless,
-};
-
-pub const Options = struct {
-    is_app: bool = false,
-    headless: bool = false,
-    display_mode: DisplayMode = .windowed,
-    border: bool = true,
-    title: [:0]const u8 = "Zigurat",
-    size: d.Size = .{ .width = 1920 / 2, .height = 1080 / 2 },
-    power_preference: gpu.PowerPreference = .undefined,
-    required_features: ?[]const gpu.FeatureName = null,
-    required_limits: ?gpu.Limits = null,
-};
 
 /// GLFW error handling callback
 ///

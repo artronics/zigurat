@@ -8,7 +8,9 @@ pub fn main() !void {
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    var b = try zt.widget.Ui.init(allocator, .{});
+    const backend = try zt.Backend.init(allocator, .{});
+    const renderer = zt.Renderer.init(allocator, backend);
+    var b = try zt.widget.Ui.init(allocator, renderer);
     defer b.deinit();
     b.button();
     b.run();
