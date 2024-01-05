@@ -70,6 +70,10 @@ pub fn build(b: *std.Build) void {
         .dependencies = &.{
             .{ .name = "ui", .module = ui_mod },
             .{ .name = "zigimg", .module = zigimg_dep.module("zigimg") },
+            // flatten
+            .{ .name = "common", .module = common_mod },
+            .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
+            .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
         },
     });
 

@@ -8,8 +8,12 @@ pub fn main() !void {
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    var b = try zt.Ui.init(allocator, .{});
+    var b = try zt.widget.Ui.init(allocator, .{});
     defer b.deinit();
     b.button();
     b.run();
+
+    //
+    // const p = try zt.platform.WgpuBackend.init(allocator, .{});
+    // defer p.deinit();
 }
