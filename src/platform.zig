@@ -6,15 +6,10 @@ const gpu = @import("gpu");
 const d = @import("data.zig");
 
 pub const Options = struct {
-    pub const DisplayMode = enum {
-        windowed,
-        fullscreen,
-        borderless,
-    };
-    display_mode: DisplayMode = .windowed,
     headless: bool = false,
     title: [:0]const u8 = "Zigurat",
     size: d.Size = .{ .width = 1920 / 2, .height = 1080 / 2 },
+
     power_preference: gpu.PowerPreference = .undefined,
     required_features: ?[]const gpu.FeatureName = null,
     required_limits: ?gpu.Limits = null,
@@ -92,7 +87,8 @@ pub const WgpuBackend = struct {
         // Adapter
         var response: RequestAdapterResponse = undefined;
         instance.requestAdapter(&gpu.RequestAdapterOptions{
-            .compatible_surface = surface,
+            // .compatible_surface = surface,
+            .compatible_surface = null,
             .power_preference = options.power_preference,
             .force_fallback_adapter = .false,
         }, &response, requestAdapterCallback);
@@ -147,6 +143,18 @@ pub const WgpuBackend = struct {
             .present_mode = .mailbox,
         };
         const swap_chain = gpu_device.createSwapChain(surface, &swap_chain_desc);
+        // const window_size_callback = struct {
+        //     fn callback(window: glfw.Window, width: i32, height: i32) void {
+        //         const pf = (window.getUserPointer(UserPtr) orelse unreachable).self;
+        //         pf.state_mu.lock();
+        //         defer pf.state_mu.unlock();
+        //         pf.current_size.width = @intCast(width);
+        //         pf.current_size.height = @intCast(height);
+        //         pf.last_size.width = @intCast(width);
+        //         pf.last_size.height = @intCast(height);
+        //     }
+        // }.callback;
+        // self.window.setSizeCallback(window_size_callback);
 
         return .{
             .allocator = allocator,

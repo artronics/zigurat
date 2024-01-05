@@ -12,7 +12,7 @@ pub const Ui = struct {
     cmd_queue: draw.CommandQueue,
 
     pub fn init(allocator: Allocator, renderer: Renderer) !Self {
-        const cmd_q = draw.CommandQueue.init(allocator);
+        const cmd_q = try draw.CommandQueue.initCapacity(allocator, 1000);
 
         return .{
             .allocator = allocator,
