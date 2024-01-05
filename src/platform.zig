@@ -3,8 +3,7 @@ const Allocator = std.mem.Allocator;
 const log = std.log.scoped(.zigurat);
 const glfw = @import("glfw");
 const gpu = @import("gpu");
-// const cm = @import("common.zig");
-const cm = @import("common.zig");
+const d = @import("data.zig");
 
 pub const WgpuBackend = struct {
     const Self = @This();
@@ -212,7 +211,7 @@ pub const Options = struct {
     display_mode: DisplayMode = .windowed,
     border: bool = true,
     title: [:0]const u8 = "Zigurat",
-    size: cm.Size = .{ .width = 1920 / 2, .height = 1080 / 2 },
+    size: d.Size = .{ .width = 1920 / 2, .height = 1080 / 2 },
     power_preference: gpu.PowerPreference = .undefined,
     required_features: ?[]const gpu.FeatureName = null,
     required_limits: ?gpu.Limits = null,
