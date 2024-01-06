@@ -17,6 +17,7 @@ pub const Window = struct {
     const Self = @This();
 
     allocator: Allocator,
+    size: Size,
     backend: *const Backend,
     window: glfw.Window,
 
@@ -74,32 +75,39 @@ pub const Window = struct {
         };
         const swap_chain = backend.device.createSwapChain(surface, &swap_chain_desc);
 
+        std.log.warn("size: {d}:{d}", .{options.size.width, options.size.height});
         return .{
             .allocator = allocator,
+            .size = options.size,
             .backend = backend,
             .window = window,
             .swap_chain = swap_chain,
             .surface = surface,
         };
     }
+    pub fn initCallbacks(self: *Self) void {
+        self.window.setUserPointer(self);
+
+        const window_size_callback = struct {
+            fn callback(_window: glfw.Window, width: i32, height: i32) void {
+                const _win = _window.getUserPointer(Self) orelse unreachable;
+                _win.resize(.{ .width = @intCast(width), .height = @intCast(height) });
+            }
+        }.callback;
+        self.window.setSizeCallback(window_size_callback);
+    }
     pub fn deinit(self: Self) void {
         self.swap_chain.release();
         self.surface.release();
     }
+    pub fn pollEvents(self: Self) void {
+        _ = self;
+        glfw.pollEvents();
+    }
 
-    // const window_size_callback = struct {
-    //     fn callback(window: glfw.Window, width: i32, height: i32) void {
-    //         const pf = (window.getUserPointer(UserPtr) orelse unreachable).self;
-    //         pf.state_mu.lock();
-    //         defer pf.state_mu.unlock();
-    //         pf.current_size.width = @intCast(width);
-    //         pf.current_size.height = @intCast(height);
-    //         pf.last_size.width = @intCast(width);
-    //         pf.last_size.height = @intCast(height);
-    //     }
-    // }.callback;
-    // self.window.setSizeCallback(window_size_callback);
-
+    fn resize(self: *Self, size: Size) void {
+        self.size = size;
+    }
 };
 
 fn getMaxRefreshRate(allocator: Allocator) u32 {

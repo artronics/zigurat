@@ -95,12 +95,10 @@ pub const WgpuBackend = struct {
 
     pub fn deinit(self: Self) void {
         self.device.setDeviceLostCallback(null, null);
-        self.device.release();
-    }
 
-    pub fn pollEvents(self: Self) void {
-        _ = self;
-        glfw.pollEvents();
+        self.queue.release();
+        self.device.release();
+        self.instance.release();
     }
 };
 

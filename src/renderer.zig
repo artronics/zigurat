@@ -68,7 +68,7 @@ pub const Renderer = struct {
         }
     }
     pub fn render(self: Self) void {
-        self.backend.pollEvents();
+        self.window.pollEvents();
         self.backend.device.tick();
 
         const back_buffer_view = self.window.swap_chain.getCurrentTextureView().?;
@@ -86,6 +86,7 @@ pub const Renderer = struct {
         const render_pass_info = gpu.RenderPassDescriptor.init(.{
             .color_attachments = &.{color_attachment},
         });
+        self.frame.start(self.window, encoder);
 
         const pass = encoder.beginRenderPass(&render_pass_info);
         defer pass.release();
@@ -245,13 +246,33 @@ pub const Frame = struct {
         self.sampler.release();
     }
 
+    fn start(self: Self, window: *const Window, encoder: *gpu.CommandEncoder) void {
+        const w: f32 = @floatFromInt(window.size.width);
+        const h: f32 = @floatFromInt(window.size.height);
+        // column-major projection
+        const mvp = [4][4]f32{
+            [_]f32{ 2.0 / w, 0.0, 0.0, 0.0 },
+            [_]f32{ 0.0, -2.0 / h, 0.0, 0.0 },
+            [_]f32{ 0.0, 0.0, 1.0, 0.0 },
+            [_]f32{ -1.0, 1.0, 0.0, 1.0 },
+        };
+
+        const gamma = 1.0;
+        const uniforms = [_]Uniforms{.{ .mvp = mvp, .gamma = gamma }};
+        encoder.writeBuffer(self.uniforms_buffer, 0, &uniforms);
+    }
+
     const red = [_]f32{ 1.0, 0.0, 0.0, 1.0 };
     const uv = [_]f32{ 0.0, 0.0 };
     const vertices = [_]Vertex{
-        .{ .position = .{ -0.5, 0.5 }, .uv = uv, .color = red },
-        .{ .position = .{ 0.5, 0.5 }, .uv = uv, .color = red },
-        .{ .position = .{ 0.5, -0.5 }, .uv = uv, .color = red },
-        .{ .position = .{ -0.5, -0.5 }, .uv = uv, .color = red },
+        // .{ .position = .{ -100.0, 100.0 }, .uv = uv, .color = red },
+        // .{ .position = .{ 100.0, 100.0 }, .uv = uv, .color = red },
+        // .{ .position = .{ 100.0, -100.0 }, .uv = uv, .color = red },
+        // .{ .position = .{ -100.0, -100.0 }, .uv = uv, .color = red },
+        .{ .position = .{ 100.0, 100.0 }, .uv = uv, .color = red },
+        .{ .position = .{ 200.0, 100.0 }, .uv = uv, .color = red },
+        .{ .position = .{ 200.0, 200.0 }, .uv = uv, .color = red },
+        .{ .position = .{ 100.0, 200.0 }, .uv = uv, .color = red },
     };
     const indices = [_]u16{
         0, 1, 3,

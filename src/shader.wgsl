@@ -22,8 +22,10 @@ struct Uniforms {
 fn vs_main(model: VertexInput) -> VertexOutput {
 
     var out: VertexOutput;
-    out.clip_position = vec4<f32>(model.pos, 0.0, 1.0);
+    // out.clip_position = vec4<f32>(model.pos, 0.0, 1.0);
     // out.vert_pos = out.clip_position.xyz;
+
+    out.clip_position = uniforms.mvp * vec4<f32>(model.pos, 0.0, 1.0);
     out.color = model.col.rgb;
     out.tex_coords = model.uv;
 

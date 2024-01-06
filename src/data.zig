@@ -42,5 +42,5 @@ pub const Vertex = extern struct {
 
 pub const Uniforms = extern struct {
     mvp: [4]@Vector(4, f32),
-    gama: f32,
+    gamma: f32,
 };
