@@ -33,6 +33,12 @@ pub fn build(b: *std.Build) void {
     }).builder, lib);
     lib.addModule("glfw", glfw_dep.module("mach-glfw"));
 
+    // FREETYPE
+    const freetype_dep = b.dependency("mach_freetype", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     // ZIGIMG
     const zigimg_dep = b.dependency("zigimg", .{
         .target = target,
@@ -44,10 +50,10 @@ pub fn build(b: *std.Build) void {
     const module = b.addModule("zigurat", .{
         .source_file = .{ .path = "src/main.zig" },
         .dependencies = &.{
-            .{ .name = "zigimg", .module = zigimg_dep.module("zigimg") },
-            // flatten
             .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
             .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
+            .{ .name = "freetype", .module = freetype_dep.module("mach-freetype") },
+            .{ .name = "zigimg", .module = zigimg_dep.module("zigimg") },
         },
     });
 

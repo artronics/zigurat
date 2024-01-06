@@ -75,7 +75,7 @@ pub const Window = struct {
         };
         const swap_chain = backend.device.createSwapChain(surface, &swap_chain_desc);
 
-        std.log.warn("size: {d}:{d}", .{options.size.width, options.size.height});
+        std.log.warn("size: {d}:{d}", .{ options.size.width, options.size.height });
         return .{
             .allocator = allocator,
             .size = options.size,
@@ -95,17 +95,27 @@ pub const Window = struct {
             }
         }.callback;
         self.window.setSizeCallback(window_size_callback);
+        const framebuffer_size_callback = struct {
+            fn callback(_window: glfw.Window, _: u32, _: u32) void {
+                const _win = _window.getUserPointer(Self) orelse unreachable;
+                _ = _win;
+                std.log.warn("frame buffer resize", .{});
+                // _win.swap_chain.present();
+            }
+        }.callback;
+        self.window.setFramebufferSizeCallback(framebuffer_size_callback);
     }
     pub fn deinit(self: Self) void {
         self.swap_chain.release();
         self.surface.release();
     }
-    pub fn pollEvents(self: Self) void {
+    pub inline fn pollEvents(self: Self) void {
         _ = self;
         glfw.pollEvents();
     }
 
     fn resize(self: *Self, size: Size) void {
+        // std.log.warn("size: {d}:{d}", .{ size.width, size.height });
         self.size = size;
     }
 };
