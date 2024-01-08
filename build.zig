@@ -38,6 +38,11 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    @import("mach_freetype").linkFreetype(b.dependency("mach_freetype", .{
+        .target = target,
+        .optimize = optimize,
+    }).builder, lib);
+    lib.addModule("freetype", freetype_dep.module("mach-freetype"));
 
     // ZIGIMG
     const zigimg_dep = b.dependency("zigimg", .{
@@ -45,11 +50,17 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const assets_mod = b.addModule("assets", .{
+        .source_file = .{ .path = "assets/main.zig" },
+    });
+    lib.addModule("assets", assets_mod);
+
     b.installArtifact(lib);
 
     const module = b.addModule("zigurat", .{
         .source_file = .{ .path = "src/main.zig" },
         .dependencies = &.{
+            .{ .name = "assets", .module = assets_mod },
             .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
             .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
             .{ .name = "freetype", .module = freetype_dep.module("mach-freetype") },
@@ -76,6 +87,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }).builder, hello_example, .{}) catch unreachable;
 
+    @import("mach_freetype").linkFreetype(b.dependency("mach_freetype", .{
+        .target = target,
+        .optimize = optimize,
+    }).builder, hello_example);
+
     b.installArtifact(hello_example);
     const run_hello_cmd = b.addRunArtifact(hello_example);
     run_hello_cmd.step.dependOn(b.getInstallStep());
@@ -88,8 +104,7 @@ pub fn build(b: *std.Build) void {
 
     // Tests
     addTest(b, "main", optimize, target);
-    addTest(b, "platform/platform", optimize, target);
-    addTest(b, "graphics/graphics", optimize, target);
+    addTest(b, "font", optimize, target);
 }
 
 fn addTest(b: *std.Build, comptime name: []const u8, optimize: std.builtin.OptimizeMode, target: std.zig.CrossTarget) void {
@@ -121,6 +136,17 @@ fn addTest(b: *std.Build, comptime name: []const u8, optimize: std.builtin.Optim
         .optimize = optimize,
     }).builder, unit_tests, .{}) catch unreachable;
 
+    // FREETYPE
+    const freetype_dep = b.dependency("mach_freetype", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    unit_tests.addModule("freetype", freetype_dep.module("mach-freetype"));
+    @import("mach_freetype").linkFreetype(b.dependency("mach_freetype", .{
+        .target = target,
+        .optimize = optimize,
+    }).builder, unit_tests);
+
     // ZIGIMG
     const zigimg_dep = b.dependency("zigimg", .{
         .target = target,
@@ -128,14 +154,10 @@ fn addTest(b: *std.Build, comptime name: []const u8, optimize: std.builtin.Optim
     });
     unit_tests.addModule("zigimg", zigimg_dep.module("zigimg"));
 
-    const platform_dep = b.addModule("platform", .{
-        .source_file = .{ .path = "src/platform/mock_platform.zig" },
-        .dependencies = &.{
-            .{ .name = "gpu", .module = gpu_dep.module("mach-gpu") },
-            .{ .name = "glfw", .module = glfw_dep.module("mach-glfw") },
-        },
+    const assets_mod = b.addModule("assets", .{
+        .source_file = .{ .path = "assets/main.zig" },
     });
-    unit_tests.addModule("platform", platform_dep);
+    unit_tests.addModule("assets", assets_mod);
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const test_step = b.step("test-" ++ name, "Run " ++ name ++ "tests");

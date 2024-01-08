@@ -4,6 +4,7 @@ const platform = @import("platform.zig");
 const gpu = @import("gpu");
 const win = @import("window.zig");
 const Window = win.Window;
+const font = @import("font.zig");
 const data = @import("data.zig");
 const Vertex = data.Vertex;
 const Uniforms = data.Uniforms;
@@ -23,6 +24,7 @@ pub const Renderer = struct {
 
     // Client owns the backend but NOT the window. Window will be destroyed upon deinit
     pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window) Self {
+        _ = font.init(allocator) catch unreachable;
         const shader = @embedFile("shader.wgsl");
         const vs_mod = backend.device.createShaderModuleWGSL("Vertex Shader", shader);
         defer vs_mod.release();

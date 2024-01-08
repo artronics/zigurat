@@ -12,6 +12,19 @@ pub const Point = extern struct {
     x: f32,
     y: f32,
 };
+pub const RectBound = extern struct {
+    a: Point,
+    c: Point,
+};
+
+pub const TextureCoordinate = extern struct {
+    u: f32,
+    v: f32,
+};
+pub const TextureBound = extern struct {
+    a: TextureCoordinate,
+    c: TextureCoordinate,
+};
 
 pub const Color = extern struct {
     r: f32,

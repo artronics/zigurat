@@ -10,7 +10,8 @@
                 "kind": "build",
                 "isDefault": false
             }
-        },{
+        },
+        {
             "label": "run-hello",
             "type": "shell",
             "command": "${env:HOME}/.local/bin/zig build run-hello",
@@ -28,7 +29,17 @@
             "group": {
                 "kind": "test",
             }
-        },{
+        },
+        {
+            "label": "run font tests",
+            "type": "shell",
+            "command": "${env:HOME}/.local/bin/zig build test-font",
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+            }
+        },
+        {
             "label": "run native tests",
             "type": "shell",
             "command": "${env:HOME}/.local/bin/zig test -femit-bin=${workspaceFolder}/zig-out/native-test ${workspaceFolder}/src/platform/native.zig",
@@ -36,7 +47,8 @@
             "group": {
                 "kind": "test",
             }
-        },{
+        },
+        {
             "label": "run graphics/graphics tests",
             "type": "shell",
             "command": "${env:HOME}/.local/bin/zig build test-graphics/graphics",
