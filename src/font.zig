@@ -6,6 +6,8 @@ const RecBound = data.RectBound;
 const TexBound = data.TextureBound;
 const roboto_reg = @import("assets").fonts_roboto_regular;
 
+const log = std.log.scoped(.zigurat);
+
 //Notes:
 // bidi processing: https://harfbuzz.github.io/what-harfbuzz-doesnt-do.html
 const Self = @This();
@@ -15,26 +17,23 @@ const Font = struct {
 };
 
 const Glyph = struct {
-    bound: RecBound,
-    tex_cor: TexBound,
-    advance_x: f32,
-    fn empty() Glyph {
-        return .{
-            .bound = .{ .a = .{ .x = 0, .y = 0 }, .c = .{ .x = 0, .y = 0 } },
-            .tex_cor = .{ .a = .{ .u = 0, .v = 0 }, .c = .{ .u = 0, .v = 0 } },
-            .advance_x = 0,
-        };
-    }
+    x0: u32 = 0,
+    y0: u32 = 0,
+    x1: u32 = 0,
+    y1: u32 = 0,
+    x_off: i32 = 0,
+    y_off: i32 = 0,
+    advance_x: i32 = 0,
 };
 
 const num_glyphs: u32 = 128;
-var en_glyphs = [_]Glyph{Glyph.empty()} ** num_glyphs;
+var en_glyphs = [_]Glyph{.{}} ** num_glyphs;
 
 allocator: Allocator,
 freetype_lib: freetype.Library,
 face: freetype.Face,
 pixels: []u8 = undefined,
-tex_width: usize = 0,
+tex_width: u32 = 0,
 
 pub fn init(allocator: Allocator) !Self {
     const lib = try freetype.Library.init();
@@ -44,10 +43,10 @@ pub fn init(allocator: Allocator) !Self {
     // @import("glfw").getMonitorContentScale(monitor, &xscale, &yscale);
     const face = try lib.createFaceMemory(roboto_reg, 0);
     try face.setCharSize(60 * 48, 0, 50, 0);
-    try face.loadChar('a', .{ .render = true });
-    const glyph = face.glyph();
-    const bitmap = glyph.bitmap();
-    _ = bitmap;
+    // // try face.loadChar('a', .{ .render = true });
+    // const glyph = face.glyph();
+    // const bitmap = glyph.bitmap();
+    // _ = bitmap;
     return .{
         .allocator = allocator,
         .freetype_lib = lib,
@@ -57,6 +56,29 @@ pub fn init(allocator: Allocator) !Self {
 pub fn deinit(self: Self) void {
     self.freetype_lib.deinit();
     self.allocator.free(self.pixels);
+}
+
+pub const AtlasTexture = struct {
+    width: u32,
+    height: u32,
+    pixels: []const u8,
+};
+pub fn textureData(self: Self) AtlasTexture {
+    const len = self.tex_width * self.tex_width * 4;
+    var pixels = self.allocator.alloc(u8, len) catch unreachable;
+    var i: usize = 0;
+    while (i < len) : (i += 4) {
+        pixels[i] = 0xff;
+        pixels[i + 1] = 0x00;
+        pixels[i + 2] = 0xff;
+        pixels[i + 3] = 0x00;
+    }
+
+    return .{
+        .width = self.tex_width,
+        .height = self.tex_width,
+        .pixels = pixels,
+    };
 }
 
 // FT_Library ft;
@@ -111,17 +133,18 @@ pub fn deinit(self: Self) void {
 
 // FT_Done_FreeType(ft);
 
-fn buildAtlas(self: *Self) !void {
-    const h_px = 1 + (self.face.size().metrics().height >> 6);
-    const w_glyphs: c_long = @ceil(@sqrt(@as(f32, @floatFromInt(num_glyphs))));
+pub fn buildAtlas(self: *Self) !void {
+    const h_px: u32 = @intCast(1 + (self.face.size().metrics().height >> 6));
+    const w_glyphs: u32 = @ceil(@sqrt(@as(f32, @floatFromInt(num_glyphs))));
     const max_dim = w_glyphs * h_px;
-    var tex_width: usize = 1;
+    var tex_width: u32 = 1;
     while (tex_width < max_dim) tex_width <<= 1;
     const tex_height = tex_width;
     self.tex_width = tex_width;
+    log.warn("tex width: {d}", .{self.tex_width});
     self.pixels = try self.allocator.alloc(u8, tex_width * tex_height);
-    var pen_x: usize = 0;
-    var pen_y: usize = 0;
+    var pen_x: u32 = 0;
+    var pen_y: u32 = 0;
 
     for (0..num_glyphs) |i| {
         try self.face.loadChar(@intCast(i), .{ .render = true, .force_autohint = true, .target_light = true });
@@ -129,7 +152,7 @@ fn buildAtlas(self: *Self) !void {
 
         if (pen_x + bmp.width() >= tex_width) {
             pen_x = 0;
-            pen_y += @intCast(((self.face.size().metrics().height >> 6) + 1));
+            pen_y += h_px;
         }
 
         for (0..bmp.rows()) |row| {
@@ -142,19 +165,17 @@ fn buildAtlas(self: *Self) !void {
 
         const glyph = try self.face.glyph().getGlyph();
         en_glyphs[i] = .{
-            .bound = .{
-                .a = .{ .x = @floatFromInt(pen_x), .y = @floatFromInt(pen_y) },
-                .c = .{ .x = @floatFromInt(pen_x + bmp.width()), .y = @floatFromInt(pen_y + bmp.rows()) },
-            },
+            .x0 = pen_x,
+            .y0 = pen_y,
+            .x1 = pen_x + bmp.width(),
+            .y1 = pen_y + bmp.rows(),
+            .x_off = self.face.glyph().bitmapLeft(),
+            .y_off = self.face.glyph().bitmapTop(),
             // TODO: text-cor is not corret
             // 	info[i].x_off   = face->glyph->bitmap_left;
             // 	info[i].y_off   = face->glyph->bitmap_top;
             // 	info[i].advance = face->glyph->advance.x >> 6;
-            .tex_cor = .{
-                .a = .{ .u = 0, .v = 0 },
-                .c = .{ .u = 0, .v = 0 },
-            },
-            .advance_x = @floatFromInt(glyph.advanceX() >> 6),
+            .advance_x = @intCast(glyph.advanceX() >> 6),
         };
 
         pen_x += bmp.width() + 1;
@@ -164,10 +185,10 @@ test "font" {
     const a = std.testing.allocator;
     var font = try init(a);
     try font.buildAtlas();
-    font.printGlyph(65);
+    try font.printGlyph(65);
     defer font.deinit();
 }
-fn printGlyph(self: Self, index: usize) void {
+fn printGlyph(self: Self, index: usize) !void {
     // var i: usize = 0;
     // while (i < bitmap.rows()) : (i += 1) {
     //     var j: usize = 0;
@@ -182,8 +203,8 @@ fn printGlyph(self: Self, index: usize) void {
     //     std.debug.print("\n", .{});
     // }
     const g = en_glyphs[index];
-    const rows = @as(usize, @intFromFloat(g.bound.c.y - g.bound.a.y));
-    const cols = @as(usize, @intFromFloat(g.bound.c.x - g.bound.a.x));
+    const rows = g.y1 - g.y0;
+    const cols = g.x1 - g.x0;
     for (0..rows) |i| {
         for (0..cols) |j| {
             const char: u8 = switch (self.pixels[i * self.tex_width + j]) {
@@ -195,4 +216,19 @@ fn printGlyph(self: Self, index: usize) void {
         }
         std.debug.print("\n", .{});
     }
+    const zigimg = @import("zigimg");
+    var img = try zigimg.Image.create(std.testing.allocator, self.tex_width, self.tex_width, zigimg.PixelFormat.grayscale8);
+    defer img.deinit();
+
+    const file = try std.fs.cwd().createFile("junk_file.txt", .{ .truncate = true });
+    defer file.close();
+    // try img.writeToFilePath("yoo", zigimg.Image.EncoderOptions{.tga = .{
+    //         .rle_compressed = true,
+    //         .color_map_depth = 16,
+    //         .top_to_bottom_image = false,
+    //         .image_id = "Truevision(R) Sample Image",
+    //     },});
+    try img.writeToFilePath("yop.png", zigimg.Image.EncoderOptions{
+        .png = .{},
+    });
 }

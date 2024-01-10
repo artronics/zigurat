@@ -4,7 +4,7 @@ const platform = @import("platform.zig");
 const gpu = @import("gpu");
 const win = @import("window.zig");
 const Window = win.Window;
-const font = @import("font.zig");
+const fontmgr = @import("font.zig");
 const data = @import("data.zig");
 const Vertex = data.Vertex;
 const Uniforms = data.Uniforms;
@@ -19,12 +19,14 @@ pub const Renderer = struct {
     backend: *const Backend,
     window: *const Window,
     common_bind_group: *gpu.BindGroup,
+    image_bind_group: *gpu.BindGroup,
     frame: Frame,
     pipeline: *gpu.RenderPipeline,
 
     // Client owns the backend but NOT the window. Window will be destroyed upon deinit
     pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window) Self {
-        _ = font.init(allocator) catch unreachable;
+        var font = fontmgr.init(allocator) catch unreachable;
+        font.buildAtlas() catch unreachable;
         const shader = @embedFile("shader.wgsl");
         const vs_mod = backend.device.createShaderModuleWGSL("Vertex Shader", shader);
         defer vs_mod.release();
@@ -44,13 +46,50 @@ pub const Renderer = struct {
                 gpu.BindGroup.Entry.sampler(1, frame.sampler),
             },
         }));
-        // TODO: Create texture view for fonts
+
+        const atlas_data = font.textureData();
+        const img_size = gpu.Extent3D{ .width = atlas_data.width, .height = atlas_data.height };
+
+        const texture = backend.device.createTexture(&.{
+            .label = "Font Atlas",
+            .size = img_size,
+            .format = .rgba8_unorm,
+            .usage = .{
+                .texture_binding = true,
+                .copy_dst = true,
+            },
+            .mip_level_count = 1,
+            .sample_count = 1,
+        });
+        const data_layout = gpu.Texture.DataLayout{
+            .bytes_per_row = atlas_data.width * 4,
+            .rows_per_image = atlas_data.height,
+        };
+        backend.queue.writeTexture(&.{ .texture = texture }, &data_layout, &img_size, atlas_data.pixels);
+
+        const image_bg_layout1 = pipeline.getBindGroupLayout(1);
+
+        const tex_view = texture.createView(&.{
+            .label = "Font Atlas View",
+            .format = .rgba8_unorm,
+            .base_mip_level = 0,
+            .mip_level_count = 1,
+            .base_array_layer = 0,
+            .array_layer_count = 1,
+        });
+        const image_bg = backend.device.createBindGroup(&gpu.BindGroup.Descriptor.init(.{
+            .layout = image_bg_layout1,
+            .entries = &.{
+                gpu.BindGroup.Entry.textureView(0, tex_view),
+            },
+        }));
 
         return .{
             .allocator = allocator,
             .backend = backend,
             .window = window,
             .common_bind_group = common_bg,
+            .image_bind_group = image_bg,
             .frame = frame,
             .pipeline = pipeline,
         };
@@ -96,6 +135,7 @@ pub const Renderer = struct {
         pass.setPipeline(self.pipeline);
 
         pass.setBindGroup(0, self.common_bind_group, &.{});
+        pass.setBindGroup(1, self.image_bind_group, &.{});
         pass.setVertexBuffer(0, self.frame.vertex_buffer, 0, @sizeOf(Vertex) * self.frame.vertex_size);
         pass.setIndexBuffer(self.frame.index_buffer, .uint16, 0, @sizeOf(u16) * self.frame.index_size);
 
@@ -161,19 +201,18 @@ fn createPipeline(device: *gpu.Device, vs_mod: *gpu.ShaderModule, fs_mod: *gpu.S
         },
     }));
     defer common_bg0_layout.release();
-    // const image_bg1_layout = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
-    //     .label = "Image BindGroup1 Layout",
-    //     .entries = &.{
-    //         gpu.BindGroupLayout.Entry.texture(0, .{ .fragment = true }, .float, .dimension_2d, false),
-    //     },
-    // }));
-    // defer image_bg1_layout.release();
+    const image_bg1_layout = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
+        .label = "Image BindGroup1 Layout",
+        .entries = &.{
+            gpu.BindGroupLayout.Entry.texture(0, .{ .fragment = true }, .float, .dimension_2d, false),
+        },
+    }));
+    defer image_bg1_layout.release();
 
     const pipeline_layout = device.createPipelineLayout(&gpu.PipelineLayout.Descriptor.init(
         .{
             .label = "Binding Layouts",
-            // .bind_group_layouts = &.{ common_bg_layout0, image_bg1_layout },
-            .bind_group_layouts = &.{common_bg0_layout},
+            .bind_group_layouts = &.{ common_bg0_layout, image_bg1_layout },
         },
     ));
 
