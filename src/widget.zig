@@ -1,5 +1,5 @@
 const std = @import("std");
-const Renderer = @import("renderer.zig").Renderer;
+const Renderer = @import("renderer.zig");
 const draw = @import("draw.zig");
 const platform = @import("platform.zig");
 const Allocator = std.mem.Allocator;
