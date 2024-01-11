@@ -38,11 +38,7 @@ tex_width: u32 = 0,
 pub fn init(allocator: Allocator) !Self {
     const lib = try freetype.Library.init();
 
-    // var xscale: f32 = undefined;
-    // var yscale: f32 = undefined;
-    // @import("glfw").getMonitorContentScale(monitor, &xscale, &yscale);
     const face = try lib.createFaceMemory(roboto_reg, 0);
-    try face.setCharSize(60 * 48, 0, 50, 0);
     // // try face.loadChar('a', .{ .render = true });
     // const glyph = face.glyph();
     // const bitmap = glyph.bitmap();
@@ -64,76 +60,100 @@ pub const AtlasTexture = struct {
     pixels: []const u8,
 };
 pub fn textureData(self: Self) AtlasTexture {
-    const len = self.tex_width * self.tex_width * 4;
+    // const len = self.tex_width * self.tex_width * 4;
+    self.face.setCharSize(64 * 40, 0, 300, 300) catch unreachable;
+    self.face.setPixelSizes(0, 100) catch unreachable;
+    self.face.loadChar(@intCast('A'), .{ .render = true, .force_autohint = true, .target_light = true }) catch unreachable;
+    const bmp = self.face.glyph().bitmap();
+
+    const height = bmp.rows();
+    // const height: u32 = @intCast(self.face.size().metrics().height >> 6);
+    const width = bmp.width();
+    const len = height * width * 4;
     var pixels = self.allocator.alloc(u8, len) catch unreachable;
-    var i: usize = 0;
-    while (i < len) : (i += 4) {
-        pixels[i] = 0xff;
-        pixels[i + 1] = 0x00;
-        pixels[i + 2] = 0xff;
-        pixels[i + 3] = 0x00;
+    for (0..height) |row| {
+        for (0..width) |col| {
+            const i = row * width + col;
+            const color = bmp.buffer().?[i];
+            pixels[i] = color;
+            pixels[i + 1] = color;
+            pixels[i + 2] = color;
+            pixels[i + 3] = 0xff;
+        }
     }
 
+    // return .{
+    //     .width = width,
+    //     .height = height,
+    //     .pixels = pixels,
+    // };
     return .{
         .width = self.tex_width,
         .height = self.tex_width,
-        .pixels = pixels,
+        .pixels = self.pixels,
     };
 }
 
-// FT_Library ft;
-// FT_Face    face;
+pub fn buildAtlas2(self: *Self) !void {
+    try self.face.setCharSize(64 * 48, 0, 300, 0);
 
-// FT_Init_FreeType(&ft);
-// FT_New_Face(ft, argv[1], 0, &face);
-// FT_Set_Char_Size(face, 0, atoi(argv[2]) << 6, 96, 96);
+    const h_px: u32 = @intCast(1 + (self.face.size().metrics().height >> 6));
+    // const w_glyphs: u32 = @ceil(@sqrt(@as(f32, @floatFromInt(num_glyphs))));
+    const w_glyphs: u32 = 1;
+    const max_dim = w_glyphs * h_px;
+    var tex_width: u32 = 1;
+    while (tex_width < max_dim) tex_width <<= 1;
+    const tex_height = tex_width;
+    self.tex_width = tex_width;
+    log.warn("tex width: {d}", .{self.tex_width});
+    self.pixels = try self.allocator.alloc(u8, tex_width * tex_height * 4);
+    var pen_x: u32 = 0;
+    var pen_y: u32 = 0;
 
-// // quick and dirty max texture size estimate
+    for (0..1) |i| {
+        try self.face.loadChar('A', .{ .render = true, .force_autohint = true, .target_light = true });
+        const bmp = self.face.glyph().bitmap();
 
-// int max_dim = (1 + (face->size->metrics.height >> 6)) * ceilf(sqrtf(NUM_GLYPHS));
-// int tex_width = 1;
-// while(tex_width < max_dim) tex_width <<= 1;
-// int tex_height = tex_width;
+        if (pen_x + bmp.width() >= tex_width) {
+            pen_x = 0;
+            pen_y += h_px;
+        }
 
-// // render glyphs to atlas
+        for (0..bmp.rows()) |row| {
+            for (0..bmp.width()) |col| {
+                const x = pen_x + col;
+                const y = pen_y + row;
+                const color = bmp.buffer().?[row * @abs(bmp.pitch()) + col];
+                const pi = y * tex_width + x;
+                self.pixels[pi] = color;
+                self.pixels[pi + 1] = 0xff;
+                self.pixels[pi + 2] = color;
+                // self.pixels[pi + 3] = if (color == 0) 0x0 else 0xff;
+                self.pixels[pi + 3] = 0;
+            }
+        }
 
-// char* pixels = (char*)calloc(tex_width * tex_height, 1);
-// int pen_x = 0, pen_y = 0;
+        const glyph = try self.face.glyph().getGlyph();
+        en_glyphs[i] = .{
+            .x0 = pen_x,
+            .y0 = pen_y,
+            .x1 = pen_x + bmp.width(),
+            .y1 = pen_y + bmp.rows(),
+            .x_off = self.face.glyph().bitmapLeft(),
+            .y_off = self.face.glyph().bitmapTop(),
+            .advance_x = @intCast(glyph.advanceX() >> 6),
+        };
 
-// for(int i = 0; i < NUM_GLYPHS; ++i){
-// 	FT_Load_Char(face, i, FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_LIGHT);
-// 	FT_Bitmap* bmp = &face->glyph->bitmap;
-
-// 	if(pen_x + bmp->width >= tex_width){
-// 		pen_x = 0;
-// 		pen_y += ((face->size->metrics.height >> 6) + 1);
-// 	}
-
-// 	for(int row = 0; row < bmp->rows; ++row){
-// 		for(int col = 0; col < bmp->width; ++col){
-// 			int x = pen_x + col;
-// 			int y = pen_y + row;
-// 			pixels[y * tex_width + x] = bmp->buffer[row * bmp->pitch + col];
-// 		}
-// 	}
-
-// 	// this is stuff you'd need when rendering individual glyphs out of the atlas
-
-// 	info[i].x0 = pen_x;
-// 	info[i].y0 = pen_y;
-// 	info[i].x1 = pen_x + bmp->width;
-// 	info[i].y1 = pen_y + bmp->rows;
-
-// 	info[i].x_off   = face->glyph->bitmap_left;
-// 	info[i].y_off   = face->glyph->bitmap_top;
-// 	info[i].advance = face->glyph->advance.x >> 6;
-
-// 	pen_x += bmp->width + 1;
-// }
-
-// FT_Done_FreeType(ft);
-
+        pen_x += bmp.width() + 1;
+    }
+}
 pub fn buildAtlas(self: *Self) !void {
+    // TODO: get the monitor's DPI
+    // var xscale: f32 = undefined;
+    // var yscale: f32 = undefined;
+    // @import("glfw").getMonitorContentScale(monitor, &xscale, &yscale);
+    try self.face.setCharSize(60 * 48, 0, 300, 0);
+
     const h_px: u32 = @intCast(1 + (self.face.size().metrics().height >> 6));
     const w_glyphs: u32 = @ceil(@sqrt(@as(f32, @floatFromInt(num_glyphs))));
     const max_dim = w_glyphs * h_px;

@@ -26,7 +26,7 @@ pub const Renderer = struct {
     // Client owns the backend but NOT the window. Window will be destroyed upon deinit
     pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window) Self {
         var font = fontmgr.init(allocator) catch unreachable;
-        font.buildAtlas() catch unreachable;
+        font.buildAtlas2() catch unreachable;
         const shader = @embedFile("shader.wgsl");
         const vs_mod = backend.device.createShaderModuleWGSL("Vertex Shader", shader);
         defer vs_mod.release();
@@ -195,7 +195,6 @@ fn createPipeline(device: *gpu.Device, vs_mod: *gpu.ShaderModule, fs_mod: *gpu.S
     const common_bg0_layout = device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
         .label = "Common BindGroup0 Layout",
         .entries = &.{
-            // FIXME: Is the sizeOf Uniform correct for min_binding_size?
             gpu.BindGroupLayout.Entry.buffer(0, .{ .vertex = true, .fragment = true }, .uniform, false, @sizeOf(Uniforms)),
             gpu.BindGroupLayout.Entry.sampler(1, .{ .fragment = true }, .filtering),
         },
@@ -264,9 +263,9 @@ pub const Frame = struct {
             .min_filter = .linear,
             .mag_filter = .linear,
             .mipmap_filter = .linear,
-            .address_mode_u = .repeat,
-            .address_mode_v = .repeat,
-            .address_mode_w = .repeat,
+            .address_mode_u = .clamp_to_edge,
+            .address_mode_v = .clamp_to_edge,
+            .address_mode_w = .clamp_to_edge,
             .max_anisotropy = 1,
         });
 
@@ -303,17 +302,17 @@ pub const Frame = struct {
         encoder.writeBuffer(self.uniforms_buffer, 0, &uniforms);
     }
 
-    const red = [_]f32{ 1.0, 0.0, 0.0, 1.0 };
+    const white = [_]f32{ 1.0, 1.0, 1.0, 1.0 };
     const uv = [_]f32{ 0.0, 0.0 };
     const vertices = [_]Vertex{
-        // .{ .position = .{ -100.0, 100.0 }, .uv = uv, .color = red },
         // .{ .position = .{ 100.0, 100.0 }, .uv = uv, .color = red },
-        // .{ .position = .{ 100.0, -100.0 }, .uv = uv, .color = red },
-        // .{ .position = .{ -100.0, -100.0 }, .uv = uv, .color = red },
-        .{ .position = .{ 100.0, 100.0 }, .uv = uv, .color = red },
-        .{ .position = .{ 200.0, 100.0 }, .uv = uv, .color = red },
-        .{ .position = .{ 200.0, 200.0 }, .uv = uv, .color = red },
-        .{ .position = .{ 100.0, 200.0 }, .uv = uv, .color = red },
+        // .{ .position = .{ 200.0, 100.0 }, .uv = uv, .color = red },
+        // .{ .position = .{ 200.0, 200.0 }, .uv = uv, .color = red },
+        // .{ .position = .{ 100.0, 200.0 }, .uv = uv, .color = red },
+        .{ .position = .{ 100.0, 100.0 }, .uv = .{ 0.0, 0.0 }, .color = white },
+        .{ .position = .{ 200.0, 100.0 }, .uv = .{ 1.0, 0.0 }, .color = white },
+        .{ .position = .{ 200.0, 200.0 }, .uv = .{ 1.0, 1.0 }, .color = white },
+        .{ .position = .{ 100.0, 200.0 }, .uv = .{ 0.0, 1.0 }, .color = white },
     };
     const indices = [_]u16{
         0, 1, 3,
