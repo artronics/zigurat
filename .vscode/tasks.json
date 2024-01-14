@@ -40,6 +40,15 @@
             }
         },
         {
+            "label": "run draw tests",
+            "type": "shell",
+            "command": "${env:HOME}/.local/bin/zig build test-draw",
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+            }
+        },
+        {
             "label": "run native tests",
             "type": "shell",
             "command": "${env:HOME}/.local/bin/zig test -femit-bin=${workspaceFolder}/zig-out/native-test ${workspaceFolder}/src/platform/native.zig",

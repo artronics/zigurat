@@ -7,14 +7,15 @@ const Window = win.Window;
 const fontmgr = @import("font.zig");
 const data = @import("data.zig");
 const Vertex = data.Vertex;
+const Index = data.Index;
 const Uniforms = data.Uniforms;
 const Point = data.Point;
 const Color = data.Color;
+const Size = data.Size;
 const Backend = platform.WgpuBackend;
+const Draw = @import("draw.zig");
 
 const Self = @This();
-const vertex_size_init = 10000;
-const index_size_init = 10000;
 
 allocator: Allocator,
 backend: *const Backend,
@@ -27,9 +28,13 @@ vertex_buffer: *gpu.Buffer,
 index_buffer: *gpu.Buffer,
 uniforms_buffer: *gpu.Buffer,
 sampler: *gpu.Sampler,
+draw: Draw,
 
-vertex_size: u32 = vertex_size_init,
-index_size: u32 = index_size_init,
+// The size should come from draw buffers. Remove these after it's done
+// vertex_size: u32 = vertex_size_init,
+// index_size: u32 = index_size_init,
+// const vertex_size_init = 10000;
+// const index_size_init = 10000;
 
 // Client owns the backend but NOT the window. Window will be destroyed upon deinit
 pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window) Self {
@@ -51,12 +56,12 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
     });
     const vertex_buf = device.createBuffer(&.{
         .usage = .{ .copy_dst = true, .vertex = true },
-        .size = @sizeOf(Vertex) * vertex_size_init,
+        .size = @sizeOf(Vertex) * 4,
         .mapped_at_creation = .false,
     });
     const index_buf = device.createBuffer(&.{
         .usage = .{ .copy_dst = true, .index = true },
-        .size = roundToMultipleOf4(u64, @sizeOf(u16) * index_size_init),
+        .size = roundToMultipleOf4(u64, @sizeOf(u16) * 6),
         .mapped_at_creation = .false,
     });
     const sampler = device.createSampler(&.{
@@ -101,7 +106,7 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
     const image_bg_layout1 = pipeline.getBindGroupLayout(1);
 
     const tex_view = texture.createView(&.{
-        .label = "Font Atlas View",
+        .label = "Atlas View",
         .format = .rgba8_unorm,
         .base_mip_level = 0,
         .mip_level_count = 1,
@@ -127,6 +132,7 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
         .vertex_buffer = vertex_buf,
         .index_buffer = index_buf,
         .sampler = sampler,
+        .draw = Draw.init(allocator, 1000),
     };
 }
 pub fn deinit(self: Self) void {
@@ -137,16 +143,10 @@ pub fn deinit(self: Self) void {
     self.index_buffer.release();
     self.uniforms_buffer.release();
     self.sampler.release();
+    self.draw.deinit();
 }
 
-// TODO: remove this
-pub fn run(self: Self) void {
-    while (!self.window.window.shouldClose()) {
-        self.render();
-        std.time.sleep(16 * std.time.ns_per_ms);
-    }
-}
-pub fn render(self: Self) void {
+pub fn render(self: *Self, cmd_list: []Draw.DrawCommand) void {
     self.window.pollEvents();
     self.backend.device.tick();
 
@@ -165,20 +165,21 @@ pub fn render(self: Self) void {
     const render_pass_info = gpu.RenderPassDescriptor.init(.{
         .color_attachments = &.{color_attachment},
     });
-    self.start(self.window, encoder);
 
     const pass = encoder.beginRenderPass(&render_pass_info);
     defer pass.release();
 
     pass.setPipeline(self.pipeline);
 
+    self.draw.draw(cmd_list) catch unreachable;
+
     pass.setBindGroup(0, self.common_bind_group, &.{});
     pass.setBindGroup(1, self.image_bind_group, &.{});
-    pass.setVertexBuffer(0, self.vertex_buffer, 0, @sizeOf(Vertex) * self.vertex_size);
-    pass.setIndexBuffer(self.index_buffer, .uint16, 0, @sizeOf(u16) * self.index_size);
+    pass.setVertexBuffer(0, self.vertex_buffer, 0, @sizeOf(Vertex) * self.draw.vertexBufferSize());
+    pass.setIndexBuffer(self.index_buffer, .uint16, 0, @sizeOf(Index) * self.draw.indexBufferSize());
 
     pass.drawIndexed(
-        self.index_size,
+        @intCast(self.draw.indexBufferSize()),
         1, // instance_count
         0, // first_index
         0, // base_vertex
@@ -190,12 +191,43 @@ pub fn render(self: Self) void {
     var command = encoder.finish(null);
     defer command.release();
 
-    self.backend.queue.writeBuffer(self.vertex_buffer, 0, vertices[0..]);
-    self.backend.queue.writeBuffer(self.index_buffer, 0, indices[0..]);
+    // buffers
+    const w: f32 = @floatFromInt(self.window.size.width);
+    const h: f32 = @floatFromInt(self.window.size.height);
+    // column-major projection
+    const mvp = [4][4]f32{
+        [_]f32{ 2.0 / w, 0.0, 0.0, 0.0 },
+        [_]f32{ 0.0, -2.0 / h, 0.0, 0.0 },
+        [_]f32{ 0.0, 0.0, 1.0, 0.0 },
+        [_]f32{ -1.0, 1.0, 0.0, 1.0 },
+    };
+
+    const gamma = 1.0;
+    const uniforms = [_]Uniforms{.{ .mvp = mvp, .gamma = gamma }};
+
+    self.backend.queue.writeBuffer(self.uniforms_buffer, 0, &uniforms);
+    self.backend.queue.writeBuffer(self.vertex_buffer, 0, self.draw.vertices());
+    self.backend.queue.writeBuffer(self.index_buffer, 0, self.draw.indices());
+    // self.backend.queue.writeBuffer(self.vertex_buffer, 0, vertices[0..]);
+    // self.backend.queue.writeBuffer(self.index_buffer, 0, indices[0..]);
+
     self.backend.queue.submit(&[_]*gpu.CommandBuffer{command});
 
     self.window.swap_chain.present();
 }
+
+const white = [_]f32{ 1.0, 1.0, 1.0, 1.0 };
+const uv = [_]f32{ 0.0, 0.0 };
+const vertices = [_]Vertex{
+    .{ .position = .{ 100.0, 100.0 }, .uv = .{ 0.0, 0.0 }, .color = white },
+    .{ .position = .{ 200.0, 100.0 }, .uv = .{ 1.0, 0.0 }, .color = white },
+    .{ .position = .{ 200.0, 200.0 }, .uv = .{ 1.0, 1.0 }, .color = white },
+    .{ .position = .{ 100.0, 200.0 }, .uv = .{ 0.0, 1.0 }, .color = white },
+};
+const indices = [_]u16{
+    0, 1, 3,
+    1, 2, 3,
+};
 
 fn createPipeline(device: *gpu.Device, vs_mod: *gpu.ShaderModule, fs_mod: *gpu.ShaderModule) *gpu.RenderPipeline {
     const swap_chain_format = .bgra8_unorm;
@@ -266,43 +298,6 @@ fn createPipeline(device: *gpu.Device, vs_mod: *gpu.ShaderModule, fs_mod: *gpu.S
 
     return device.createRenderPipeline(&desc);
 }
-
-fn start(self: Self, window: *const Window, encoder: *gpu.CommandEncoder) void {
-    const w: f32 = @floatFromInt(window.size.width);
-    const h: f32 = @floatFromInt(window.size.height);
-    // column-major projection
-    const mvp = [4][4]f32{
-        [_]f32{ 2.0 / w, 0.0, 0.0, 0.0 },
-        [_]f32{ 0.0, -2.0 / h, 0.0, 0.0 },
-        [_]f32{ 0.0, 0.0, 1.0, 0.0 },
-        [_]f32{ -1.0, 1.0, 0.0, 1.0 },
-    };
-
-    const gamma = 1.0;
-    const uniforms = [_]Uniforms{.{ .mvp = mvp, .gamma = gamma }};
-    encoder.writeBuffer(self.uniforms_buffer, 0, &uniforms);
-
-    // const vertex_mapped = self.vertex_buffer.getMappedRange(Vertex, 0, vertices.len);
-    // @memcpy(vertex_mapped.?, vertices[0..]);
-    // self.vertex_buffer.unmap();
-
-    // const index_mapped = self.index_buffer.getMappedRange(u16, 0, indices.len);
-    // @memcpy(index_mapped.?, indices[0..]);
-    // self.index_buffer.unmap();
-}
-
-const white = [_]f32{ 1.0, 1.0, 1.0, 1.0 };
-const uv = [_]f32{ 0.0, 0.0 };
-const vertices = [_]Vertex{
-    .{ .position = .{ 100.0, 100.0 }, .uv = .{ 0.0, 0.0 }, .color = white },
-    .{ .position = .{ 200.0, 100.0 }, .uv = .{ 1.0, 0.0 }, .color = white },
-    .{ .position = .{ 200.0, 200.0 }, .uv = .{ 1.0, 1.0 }, .color = white },
-    .{ .position = .{ 100.0, 200.0 }, .uv = .{ 0.0, 1.0 }, .color = white },
-};
-const indices = [_]u16{
-    0, 1, 3,
-    1, 2, 3,
-};
 
 inline fn roundToMultipleOf4(comptime T: type, value: T) T {
     return (value + 3) & ~@as(T, 3);

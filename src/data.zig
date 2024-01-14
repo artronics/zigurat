@@ -33,6 +33,8 @@ pub const Color = extern struct {
     a: f32,
 };
 
+pub const Index = u16;
+
 pub const Vertex = extern struct {
     position: @Vector(2, f32),
     uv: @Vector(2, f32),

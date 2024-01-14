@@ -54,12 +54,15 @@ pub fn deinit(self: Self) void {
     self.allocator.free(self.pixels);
 }
 
-pub const AtlasTexture = struct {
+pub const GlyphAtlas = struct {
     width: u32,
     height: u32,
     pixels: []const u8,
+    pub fn char(ch: u8) Glyph {
+        return en_glyphs[ch - 32];
+    }
 };
-pub fn textureData(self: Self) AtlasTexture {
+pub fn textureData(self: Self) GlyphAtlas {
     // const len = self.tex_width * self.tex_width * 4;
     self.face.setCharSize(64 * 40, 0, 300, 300) catch unreachable;
     self.face.setPixelSizes(0, 100) catch unreachable;
@@ -69,7 +72,7 @@ pub fn textureData(self: Self) AtlasTexture {
     const height = bmp.rows();
     // const height: u32 = @intCast(self.face.size().metrics().height >> 6);
     const width = bmp.width();
-    const len = height * width * 4;
+    const len = (height * width * 4) + 4; // plus 4 for white color at the end
     var pixels = self.allocator.alloc(u8, len) catch unreachable;
     for (0..height) |row| {
         for (0..width) |col| {
@@ -80,6 +83,13 @@ pub fn textureData(self: Self) AtlasTexture {
             pixels[i + 2] = color;
             pixels[i + 3] = 0xff;
         }
+    }
+    { // add white to the end
+        const white = 0xff;
+        pixels[len - 4] = 0xff;
+        pixels[len - 3] = white;
+        pixels[len - 2] = white;
+        pixels[len - 1] = white;
     }
 
     // return .{

@@ -105,6 +105,7 @@ pub fn build(b: *std.Build) void {
     // Tests
     addTest(b, "main", optimize, target);
     addTest(b, "font", optimize, target);
+    addTest(b, "draw", optimize, target);
 }
 
 fn addTest(b: *std.Build, comptime name: []const u8, optimize: std.builtin.OptimizeMode, target: std.zig.CrossTarget) void {

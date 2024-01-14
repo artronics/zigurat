@@ -39,7 +39,8 @@ fn vs_main(model: VertexInput) -> VertexOutput {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = in.color * textureSample(t, s, in.uv);
     let corrected_color = pow(color.rgb, vec3<f32>(uniforms.gamma));
-    return vec4<f32>(corrected_color, color.a);
+    // return vec4<f32>(corrected_color, color.a);
+    return vec4<f32>(1,0,0,1);
 }
 
 
