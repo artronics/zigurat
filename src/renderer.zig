@@ -78,7 +78,6 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
 
     const atlas_data = font.textureData();
     const img_size = gpu.Extent3D{ .width = atlas_data.width, .height = atlas_data.height };
-    // const img_size = gpu.Extent2D{ .width = atlas_data.width, .height = atlas_data.height };
 
     const texture = device.createTexture(&.{
         .label = "Font Atlas",
@@ -164,8 +163,6 @@ pub fn render(self: *Self, draw: *const Draw) void {
 
     pass.setPipeline(self.pipeline);
 
-    // self.draw.draw(cmd_list) catch unreachable;
-
     pass.setBindGroup(0, self.common_bind_group, &.{});
     pass.setBindGroup(1, self.image_bind_group, &.{});
     pass.setVertexBuffer(0, self.vertex_buffer, 0, @sizeOf(Vertex) * draw.vertexBufferSize());
@@ -201,8 +198,6 @@ pub fn render(self: *Self, draw: *const Draw) void {
     self.backend.queue.writeBuffer(self.uniforms_buffer, 0, &uniforms);
     self.backend.queue.writeBuffer(self.vertex_buffer, 0, draw.vertices());
     self.backend.queue.writeBuffer(self.index_buffer, 0, draw.indices());
-    // self.backend.queue.writeBuffer(self.vertex_buffer, 0, vertices[0..]);
-    // self.backend.queue.writeBuffer(self.index_buffer, 0, indices[0..]);
 
     self.backend.queue.submit(&[_]*gpu.CommandBuffer{command});
 

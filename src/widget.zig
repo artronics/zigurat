@@ -35,7 +35,6 @@ pub const Ui = struct {
 
     pub fn run(self: *Self) void {
         while (!self.renderer.window.window.shouldClose()) {
-            // self.renderer.render(self.cmd_queue.items);
             self.renderer.render(&self.draw);
             std.time.sleep(16 * std.time.ns_per_ms);
         }
@@ -44,9 +43,5 @@ pub const Ui = struct {
         const rec = Draw.Rect.fromWH(100, 100, 200, 200);
         const tex = Draw.Rect{ .x0 = 0, .y0 = 0, .x1 = 1, .y1 = 1 };
         self.draw.rectUv(rec, tex) catch unreachable;
-        // const rect = draw.Primitive{
-        //     .rect = .{ .x0 = 0, .y0 = 0, .x1 = 1024, .y1 = 1024 },
-        // };
-        // self.cmd_queue.append(draw.DrawCommand{ .primitive = rect }) catch unreachable;
     }
 };
