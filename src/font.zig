@@ -33,16 +33,14 @@ allocator: Allocator,
 freetype_lib: freetype.Library,
 face: freetype.Face,
 pixels: []u8 = undefined,
+pixels_rgba: []u8 = undefined,
 tex_width: u32 = 0,
 
 pub fn init(allocator: Allocator) !Self {
     const lib = try freetype.Library.init();
 
     const face = try lib.createFaceMemory(roboto_reg, 0);
-    // // try face.loadChar('a', .{ .render = true });
-    // const glyph = face.glyph();
-    // const bitmap = glyph.bitmap();
-    // _ = bitmap;
+
     return .{
         .allocator = allocator,
         .freetype_lib = lib,
@@ -52,6 +50,70 @@ pub fn init(allocator: Allocator) !Self {
 pub fn deinit(self: Self) void {
     self.freetype_lib.deinit();
     self.allocator.free(self.pixels);
+    self.allocator.free(self.pixels_rgba8);
+}
+
+pub fn build(self: *Self) !void {
+    // try self.face.setCharSize(64 * 11, 0, 300, 0);
+    try self.face.setPixelSizes(20, 0);
+
+    const h_px: u32 = @intCast(1 + (self.face.size().metrics().height >> 6));
+    // const w_glyphs: u32 = @ceil(@sqrt(@as(f32, @floatFromInt(num_glyphs + 1)))); // plus one for white color
+    const w_glyphs: u32 = @ceil(@sqrt(@as(f32, @floatFromInt(num_glyphs)))); // plus one for white color
+    const max_dim = w_glyphs * h_px;
+    var tex_width: u32 = 1;
+    while (tex_width < max_dim) tex_width <<= 1;
+    const tex_height = tex_width;
+    self.tex_width = tex_width;
+    log.warn("tex width: {d}", .{self.tex_width});
+    self.pixels = try self.allocator.alloc(u8, tex_width * tex_height);
+    var pen_x: u32 = 0;
+    var pen_y: u32 = 0;
+
+    for (0..num_glyphs) |i| {
+        try self.face.loadChar(@intCast(i), .{ .render = true, .force_autohint = true, .target_light = true });
+        const bmp = self.face.glyph().bitmap();
+
+        if (pen_x + bmp.width() >= tex_width) {
+            pen_x = 0;
+            pen_y += h_px;
+        }
+
+        for (0..bmp.rows()) |row| {
+            for (0..bmp.width()) |col| {
+                const x = pen_x + col;
+                const y = pen_y + row;
+                self.pixels[y * tex_width + x] = bmp.buffer().?[row * @abs(bmp.pitch()) + col];
+            }
+        }
+
+        const glyph = try self.face.glyph().getGlyph();
+        en_glyphs[i] = .{
+            .x0 = pen_x,
+            .y0 = pen_y,
+            .x1 = pen_x + bmp.width(),
+            .y1 = pen_y + bmp.rows(),
+            .x_off = self.face.glyph().bitmapLeft(),
+            .y_off = self.face.glyph().bitmapTop(),
+            // TODO: text-cor is not corret
+            // 	info[i].x_off   = face->glyph->bitmap_left;
+            // 	info[i].y_off   = face->glyph->bitmap_top;
+            // 	info[i].advance = face->glyph->advance.x >> 6;
+            .advance_x = @intCast(glyph.advanceX() >> 6),
+        };
+
+        pen_x += bmp.width() + 1;
+    }
+    // build rgba8
+    self.pixels_rgba = try self.allocator.alloc(u8, self.pixels.len * 4);
+    for (0..self.pixels.len) |pi| {
+        const rgba_i = pi * 4;
+        const color = self.pixels[pi];
+        self.pixels_rgba[rgba_i + 0] = color;
+        self.pixels_rgba[rgba_i + 1] = color;
+        self.pixels_rgba[rgba_i + 2] = color;
+        self.pixels_rgba[rgba_i + 3] = 0xff;
+    }
 }
 
 pub const GlyphAtlas = struct {
@@ -64,43 +126,44 @@ pub const GlyphAtlas = struct {
 };
 pub fn textureData(self: Self) GlyphAtlas {
     // const len = self.tex_width * self.tex_width * 4;
-    self.face.setCharSize(64 * 40, 0, 300, 300) catch unreachable;
-    self.face.setPixelSizes(0, 100) catch unreachable;
-    self.face.loadChar(@intCast('A'), .{ .render = true, .force_autohint = true, .target_light = true }) catch unreachable;
-    const bmp = self.face.glyph().bitmap();
+    // self.face.setCharSize(64 * 40, 0, 300, 300) catch unreachable;
+    // self.face.setPixelSizes(0, 100) catch unreachable;
+    // self.face.loadChar(@intCast('A'), .{ .render = true, .force_autohint = true, .target_light = true }) catch unreachable;
+    // const bmp = self.face.glyph().bitmap();
 
-    const height = bmp.rows();
-    // const height: u32 = @intCast(self.face.size().metrics().height >> 6);
-    const width = bmp.width();
-    const len = (height * width * 4) + 4; // plus 4 for white color at the end
-    var pixels = self.allocator.alloc(u8, len) catch unreachable;
-    for (0..height) |row| {
-        for (0..width) |col| {
-            const i = row * width + col;
-            const color = bmp.buffer().?[i];
-            pixels[i] = color;
-            pixels[i + 1] = color;
-            pixels[i + 2] = color;
-            pixels[i + 3] = 0xff;
-        }
-    }
-    { // add white to the end
-        const white = 0xff;
-        pixels[len - 4] = 0xff;
-        pixels[len - 3] = white;
-        pixels[len - 2] = white;
-        pixels[len - 1] = white;
-    }
+    // const height = bmp.rows();
+    // // const height: u32 = @intCast(self.face.size().metrics().height >> 6);
+    // const width = bmp.width();
+    // const len = (height * width * 4) + 4; // plus 4 for white color at the end
+    // var pixels = self.allocator.alloc(u8, len) catch unreachable;
+    // for (0..height) |row| {
+    //     for (0..width) |col| {
+    //         const i = row * width + col;
+    //         const color = bmp.buffer().?[i];
+    //         pixels[i] = color;
+    //         pixels[i + 1] = color;
+    //         pixels[i + 2] = color;
+    //         pixels[i + 3] = 0xff;
+    //     }
+    // }
+    // { // add white to the end
+    //     const white = 0xff;
+    //     pixels[len - 4] = 0xff;
+    //     pixels[len - 3] = white;
+    //     pixels[len - 2] = white;
+    //     pixels[len - 1] = white;
+    // }
 
     // return .{
     //     .width = width,
     //     .height = height,
     //     .pixels = pixels,
     // };
+    log.warn("atlas width: {d}", .{self.tex_width});
     return .{
         .width = self.tex_width,
         .height = self.tex_width,
-        .pixels = self.pixels,
+        .pixels = self.pixels_rgba,
     };
 }
 

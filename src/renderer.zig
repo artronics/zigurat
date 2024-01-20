@@ -28,18 +28,11 @@ vertex_buffer: *gpu.Buffer,
 index_buffer: *gpu.Buffer,
 uniforms_buffer: *gpu.Buffer,
 sampler: *gpu.Sampler,
-draw: Draw,
-
-// The size should come from draw buffers. Remove these after it's done
-// vertex_size: u32 = vertex_size_init,
-// index_size: u32 = index_size_init,
-// const vertex_size_init = 10000;
-// const index_size_init = 10000;
 
 // Client owns the backend but NOT the window. Window will be destroyed upon deinit
 pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window) Self {
     var font = fontmgr.init(allocator) catch unreachable;
-    font.buildAtlas2() catch unreachable;
+    font.build() catch unreachable;
     const device = backend.device;
     const shader = @embedFile("shader.wgsl");
     const vs_mod = device.createShaderModuleWGSL("Vertex Shader", shader);
@@ -85,6 +78,7 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
 
     const atlas_data = font.textureData();
     const img_size = gpu.Extent3D{ .width = atlas_data.width, .height = atlas_data.height };
+    // const img_size = gpu.Extent2D{ .width = atlas_data.width, .height = atlas_data.height };
 
     const texture = device.createTexture(&.{
         .label = "Font Atlas",
@@ -132,7 +126,6 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
         .vertex_buffer = vertex_buf,
         .index_buffer = index_buf,
         .sampler = sampler,
-        .draw = Draw.init(allocator, 1000),
     };
 }
 pub fn deinit(self: Self) void {
@@ -143,10 +136,10 @@ pub fn deinit(self: Self) void {
     self.index_buffer.release();
     self.uniforms_buffer.release();
     self.sampler.release();
-    self.draw.deinit();
 }
 
-pub fn render(self: *Self, cmd_list: []Draw.DrawCommand) void {
+// pub fn render(self: *Self, cmd_list: []Draw.DrawCommand) void {
+pub fn render(self: *Self, draw: *const Draw) void {
     self.window.pollEvents();
     self.backend.device.tick();
 
@@ -171,15 +164,15 @@ pub fn render(self: *Self, cmd_list: []Draw.DrawCommand) void {
 
     pass.setPipeline(self.pipeline);
 
-    self.draw.draw(cmd_list) catch unreachable;
+    // self.draw.draw(cmd_list) catch unreachable;
 
     pass.setBindGroup(0, self.common_bind_group, &.{});
     pass.setBindGroup(1, self.image_bind_group, &.{});
-    pass.setVertexBuffer(0, self.vertex_buffer, 0, @sizeOf(Vertex) * self.draw.vertexBufferSize());
-    pass.setIndexBuffer(self.index_buffer, .uint16, 0, @sizeOf(Index) * self.draw.indexBufferSize());
+    pass.setVertexBuffer(0, self.vertex_buffer, 0, @sizeOf(Vertex) * draw.vertexBufferSize());
+    pass.setIndexBuffer(self.index_buffer, .uint16, 0, @sizeOf(Index) * draw.indexBufferSize());
 
     pass.drawIndexed(
-        @intCast(self.draw.indexBufferSize()),
+        @intCast(draw.indexBufferSize()),
         1, // instance_count
         0, // first_index
         0, // base_vertex
@@ -206,8 +199,8 @@ pub fn render(self: *Self, cmd_list: []Draw.DrawCommand) void {
     const uniforms = [_]Uniforms{.{ .mvp = mvp, .gamma = gamma }};
 
     self.backend.queue.writeBuffer(self.uniforms_buffer, 0, &uniforms);
-    self.backend.queue.writeBuffer(self.vertex_buffer, 0, self.draw.vertices());
-    self.backend.queue.writeBuffer(self.index_buffer, 0, self.draw.indices());
+    self.backend.queue.writeBuffer(self.vertex_buffer, 0, draw.vertices());
+    self.backend.queue.writeBuffer(self.index_buffer, 0, draw.indices());
     // self.backend.queue.writeBuffer(self.vertex_buffer, 0, vertices[0..]);
     // self.backend.queue.writeBuffer(self.index_buffer, 0, indices[0..]);
 
@@ -215,19 +208,6 @@ pub fn render(self: *Self, cmd_list: []Draw.DrawCommand) void {
 
     self.window.swap_chain.present();
 }
-
-const white = [_]f32{ 1.0, 1.0, 1.0, 1.0 };
-const uv = [_]f32{ 0.0, 0.0 };
-const vertices = [_]Vertex{
-    .{ .position = .{ 100.0, 100.0 }, .uv = .{ 0.0, 0.0 }, .color = white },
-    .{ .position = .{ 200.0, 100.0 }, .uv = .{ 1.0, 0.0 }, .color = white },
-    .{ .position = .{ 200.0, 200.0 }, .uv = .{ 1.0, 1.0 }, .color = white },
-    .{ .position = .{ 100.0, 200.0 }, .uv = .{ 0.0, 1.0 }, .color = white },
-};
-const indices = [_]u16{
-    0, 1, 3,
-    1, 2, 3,
-};
 
 fn createPipeline(device: *gpu.Device, vs_mod: *gpu.ShaderModule, fs_mod: *gpu.ShaderModule) *gpu.RenderPipeline {
     const swap_chain_format = .bgra8_unorm;

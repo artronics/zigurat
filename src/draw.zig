@@ -13,17 +13,34 @@ pub const Rect = struct {
     y0: f32,
     x1: f32,
     y1: f32,
-    inline fn toVertices(self: Rect) [4]Vertex {
-        const color = [_]f32{1.0} ** 4;
-        const uv = [_]f32{0.0} ** 2;
-        const a = .{ .position = .{ self.x0, self.y0 }, .color = color, .uv = uv };
-        const b = .{ .position = .{ self.x1, self.y0 }, .color = color, .uv = uv };
-        const c = .{ .position = .{ self.x1, self.y1 }, .color = color, .uv = uv };
-        const d = .{ .position = .{ self.x0, self.y1 }, .color = color, .uv = uv };
-        return [4]Vertex{ a, b, c, d };
+    pub inline fn fromWH(x0: f32, y0: f32, width: f32, height: f32) Rect {
+        return .{ .x0 = x0, .y0 = y0, .x1 = x0 + width, .y1 = y0 + height };
     }
-    inline fn toIndices(self: Rect, offset: Index) [6]Index {
-        _ = self;
+    inline fn toPosition(rect: Rect) [4]Point {
+        return [4]Point{ rect.a(), rect.b(), rect.c(), rect.d() };
+    }
+    inline fn a(rect: Rect) Point {
+        return .{ .x = rect.x0, .y = rect.y0 };
+    }
+    inline fn b(rect: Rect) Point {
+        return .{ .x = rect.x1, .y = rect.y0 };
+    }
+    inline fn c(rect: Rect) Point {
+        return .{ .x = rect.x1, .y = rect.y1 };
+    }
+    inline fn d(rect: Rect) Point {
+        return .{ .x = rect.x0, .y = rect.y1 };
+    }
+    inline fn toVertices(self: Rect) [4]Vertex {
+        const color = [_]f32{ 1.0, 1.0, 0.0, 1.0 };
+        // const uv = [_]f32{0.0} ** 2;
+        const _a = .{ .position = .{ self.x0, self.y0 }, .color = color, .uv = .{ 0.0, 0.0 } };
+        const _b = .{ .position = .{ self.x1, self.y0 }, .color = color, .uv = .{ 1.0, 0.0 } };
+        const _c = .{ .position = .{ self.x1, self.y1 }, .color = color, .uv = .{ 1.0, 1.0 } };
+        const _d = .{ .position = .{ self.x0, self.y1 }, .color = color, .uv = .{ 0.0, 1.0 } };
+        return [4]Vertex{ _a, _b, _c, _d };
+    }
+    inline fn toIndices(offset: Index) [6]Index {
         return [6]Index{ offset + 0, offset + 1, offset + 2, offset + 0, offset + 2, offset + 3 };
     }
 };
@@ -77,19 +94,31 @@ pub inline fn indices(self: Self) []const Index {
 }
 
 pub fn draw(self: *Self, queue: []const DrawCommand) !void {
-    self._index_buffer.clearRetainingCapacity();
-    self._vertex_buffer.clearRetainingCapacity();
+    _ = queue;
+    _ = self;
+    // self._index_buffer.clearRetainingCapacity();
+    // self._vertex_buffer.clearRetainingCapacity();
 
-    var vtx_idx: usize = 0;
-    var idx_idx: usize = 0;
+    // var vtx_idx: usize = 0;
+    // var idx_idx: usize = 0;
 
-    for (queue) |cmd| {
-        vtx_idx += 1;
-        idx_idx += 1;
-        switch (cmd) {
-            .primitive => |pmt| try self.drawPrimitive(&pmt),
-            else => unreachable,
-        }
+    // for (queue) |cmd| {
+    //     vtx_idx += 1;
+    //     idx_idx += 1;
+    //     switch (cmd) {
+    //         .primitive => |pmt| try self.drawPrimitive(&pmt),
+    //         else => unreachable,
+    //     }
+    // }
+}
+
+pub fn rectUv(self: *Self, rect: Rect, texture: Rect) !void {
+    const vert_idx = self._vertex_buffer.items.len;
+    try self._index_buffer.appendSlice(&Rect.toIndices(@intCast(vert_idx)));
+
+    inline for (rect.toPosition()) |pos| {
+        const v = Vertex{ .position = .{ pos.x, pos.y }, .uv = texture.a().toVec(), .color = .{ 0, 1, 1, 1 } };
+        try self._vertex_buffer.append(v);
     }
 }
 
@@ -99,7 +128,7 @@ fn drawPrimitive(self: *Self, primitive: *const Primitive) !void {
     switch (primitive.*) {
         .rect => |rect| {
             try self._vertex_buffer.appendSlice(&rect.toVertices());
-            try self._index_buffer.appendSlice(&rect.toIndices(@intCast(cur_vrt_index)));
+            try self._index_buffer.appendSlice(&Rect.toIndices(@intCast(cur_vrt_index)));
         },
         .text => |text| try self.drawText(&text),
     }

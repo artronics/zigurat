@@ -11,6 +11,9 @@ pub const Size = extern struct {
 pub const Point = extern struct {
     x: f32,
     y: f32,
+    pub inline fn toVec(p: Point) [2]f32 {
+        return .{ p.x, p.y };
+    }
 };
 pub const RectBound = extern struct {
     a: Point,
