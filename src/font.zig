@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const data = @import("data.zig");
+const Point = data.Point;
 const freetype = @import("freetype");
 const RecBound = data.RectBound;
 const TexBound = data.TextureBound;
@@ -10,6 +11,12 @@ const log = std.log.scoped(.zigurat);
 
 //Notes:
 // bidi processing: https://harfbuzz.github.io/what-harfbuzz-doesnt-do.html
+
+// TODO: REFACTOR: This module shouldn't create the atlas. Instead, it should only render each individual glyph
+//  to a memory block and let the texture module to create the final atlas. Also the texture module(or any client) should
+//  be able to delete the allocated memory for the glyph range, once it built the final atlas. There is no point keeping
+//  the memory around.
+
 const Self = @This();
 
 const Font = struct {
@@ -33,6 +40,8 @@ allocator: Allocator,
 freetype_lib: freetype.Library,
 face: freetype.Face,
 pixels: []u8 = undefined,
+width: u32 = 0,
+height: u32 = 0,
 pixels_rgba: []u8 = undefined,
 tex_width: u32 = 0,
 
@@ -51,6 +60,81 @@ pub fn deinit(self: Self) void {
     self.freetype_lib.deinit();
     self.allocator.free(self.pixels);
     self.allocator.free(self.pixels_rgba8);
+}
+pub fn uvWhite(self: Self) Point {
+    _ = self;
+    return .{ .x = 0, .y = 0 };
+}
+
+pub fn build2(self: *Self, size: i32) !void {
+    try self.face.setCharSize(64 * size, 0, 300, 0);
+
+    const ch_h: u32 = @intCast(1 + (self.face.size().metrics().height >> 6));
+
+    const atl_h = roundToNearestPow2(ch_h);
+    self.height = atl_h;
+    // TODO: we are assuming each glyph has width==height which is wasteful
+    const ch_w = ch_h;
+    const w = ch_w * (num_glyphs + 1); // plus one for uvWhite
+    const atl_w = roundToNearestPow2(w);
+    self.width = atl_w;
+
+    self.pixels = try self.allocator.alloc(u8, 4 * atl_h * atl_w);
+    var pen_x: u32 = 0;
+
+    // fill uvWhite glyph. We only fill the first column even though it has reserved space for full ch_w
+    for (0..atl_h) |i| {
+        const color = 0xff;
+        const idx = i * atl_w;
+        self.pixels[idx + 0] = color;
+        self.pixels[idx + 1] = color;
+        self.pixels[idx + 2] = color;
+        self.pixels[idx + 3] = 0xff;
+    }
+    // TODO: is it ok to put next glyph with no extra space? see the other pen_x inc line
+    pen_x += 1;
+
+    for (0..num_glyphs) |i| {
+        try self.face.loadChar(@intCast(i), .{ .render = true, .force_autohint = true, .target_light = true });
+        const bmp = self.face.glyph().bitmap();
+
+        for (0..bmp.rows()) |row| {
+            for (0..bmp.width()) |col| {
+                const x = pen_x + col;
+                const y = row;
+                const buf_idx = row * @abs(bmp.pitch()) + col;
+                const color = bmp.buffer().?[buf_idx];
+
+                const pix_idx = y * atl_w + x;
+                // TODO: convert greyscale to RGBA: is it the right algo?
+                self.pixels[pix_idx + 0] = color;
+                self.pixels[pix_idx + 1] = color;
+                self.pixels[pix_idx + 2] = color;
+                self.pixels[pix_idx + 3] = 0xff;
+            }
+        }
+
+        const glyph = try self.face.glyph().getGlyph();
+        en_glyphs[i] = .{
+            .x0 = pen_x,
+            .y0 = 0,
+            .x1 = pen_x + bmp.width(),
+            .y1 = bmp.rows(),
+            .x_off = self.face.glyph().bitmapLeft(),
+            .y_off = self.face.glyph().bitmapTop(),
+            .advance_x = @intCast(glyph.advanceX() >> 6),
+        };
+
+        // TODO: is this plus one necessary? Each texture can be placed right after the other
+        pen_x += bmp.width() + 1;
+    }
+}
+
+fn roundToNearestPow2(n: u32) u32 {
+    if (n == 0 or n == 1) return 2;
+    const nlz = @clz(n - 1);
+    // This cast is not safe if nlz is zero. TODO: reject it?
+    return (@as(u32, 1) << @intCast((32 - nlz)));
 }
 
 pub fn build(self: *Self) !void {
@@ -95,10 +179,6 @@ pub fn build(self: *Self) !void {
             .y1 = pen_y + bmp.rows(),
             .x_off = self.face.glyph().bitmapLeft(),
             .y_off = self.face.glyph().bitmapTop(),
-            // TODO: text-cor is not corret
-            // 	info[i].x_off   = face->glyph->bitmap_left;
-            // 	info[i].y_off   = face->glyph->bitmap_top;
-            // 	info[i].advance = face->glyph->advance.x >> 6;
             .advance_x = @intCast(glyph.advanceX() >> 6),
         };
 

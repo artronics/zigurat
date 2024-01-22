@@ -14,6 +14,7 @@ const Color = data.Color;
 const Size = data.Size;
 const Backend = platform.WgpuBackend;
 const Draw = @import("draw.zig");
+const Texture = @import("texture.zig");
 
 const Self = @This();
 
@@ -31,8 +32,6 @@ sampler: *gpu.Sampler,
 
 // Client owns the backend but NOT the window. Window will be destroyed upon deinit
 pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window) Self {
-    var font = fontmgr.init(allocator) catch unreachable;
-    font.build() catch unreachable;
     const device = backend.device;
     const shader = @embedFile("shader.wgsl");
     const vs_mod = device.createShaderModuleWGSL("Vertex Shader", shader);
@@ -76,8 +75,9 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
         },
     }));
 
-    const atlas_data = font.textureData();
-    const img_size = gpu.Extent3D{ .width = atlas_data.width, .height = atlas_data.height };
+    const tex = Texture.init(allocator);
+    const tex_data = tex.buildTexture();
+    const img_size = gpu.Extent3D{ .width = tex_data.width, .height = tex_data.height };
 
     const texture = device.createTexture(&.{
         .label = "Font Atlas",
@@ -91,10 +91,10 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
         .sample_count = 1,
     });
     const data_layout = gpu.Texture.DataLayout{
-        .bytes_per_row = atlas_data.width * 4,
-        .rows_per_image = atlas_data.height,
+        .bytes_per_row = tex_data.width * 4,
+        .rows_per_image = tex_data.height,
     };
-    backend.queue.writeTexture(&.{ .texture = texture }, &data_layout, &img_size, atlas_data.pixels);
+    backend.queue.writeTexture(&.{ .texture = texture }, &data_layout, &img_size, tex_data.texels);
 
     const image_bg_layout1 = pipeline.getBindGroupLayout(1);
 

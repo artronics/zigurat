@@ -4,32 +4,28 @@ const Draw = @import("draw.zig");
 const platform = @import("platform.zig");
 const data = @import("data.zig");
 const Size = data.Size;
+const Rect = data.Rect;
+const Color = data.Color;
+const Opt = Draw.Option;
 const Allocator = std.mem.Allocator;
 
-// pub const CommandQueue = std.fifo.LinearFifo(draw.DrawCommand, .Dynamic);
-pub const CommandQueue = std.ArrayList(Draw.DrawCommand);
 
 pub const Ui = struct {
     const Self = @This();
 
     allocator: Allocator,
     renderer: Renderer,
-    cmd_queue: CommandQueue,
     draw: Draw,
 
     pub fn init(allocator: Allocator, renderer: Renderer) !Self {
-        const cmd_q = try CommandQueue.initCapacity(allocator, 1000);
-
         return .{
             .allocator = allocator,
             .renderer = renderer,
             .draw = Draw.init(allocator, 5000),
-            .cmd_queue = cmd_q,
         };
     }
     pub fn deinit(self: Self) void {
         self.renderer.deinit();
-        self.cmd_queue.deinit();
         self.draw.deinit();
     }
 
@@ -40,8 +36,17 @@ pub const Ui = struct {
         }
     }
     pub fn button(self: *Self) void {
-        const rec = Draw.Rect.fromWH(100, 100, 200, 200);
-        const tex = Draw.Rect{ .x0 = 0, .y0 = 0, .x1 = 1, .y1 = 1 };
+        self.draw.push(.{ .text_color = Color.white });
+        defer self.draw.pop();
+        self.label("Hello");
+
+        const rec = Rect.fromWH(100, 100, 200, 200);
+        const tex = Rect{ .x0 = 0, .y0 = 0, .x1 = 1, .y1 = 1 };
         self.draw.rectUv(rec, tex) catch unreachable;
+    }
+    pub fn label(self: Self, text: []const u8) void {
+        for (text) |ch| {
+            self.draw.char(ch) catch unreachable;
+        }
     }
 };

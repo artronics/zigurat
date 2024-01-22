@@ -5,36 +5,16 @@ const Index = data.Index;
 const Uniforms = data.Uniforms;
 const Point = data.Point;
 const Color = data.Color;
+const Rect = data.Rect;
 const font = @import("font.zig");
 const GlyphAtlas = font.GlyphAtlas;
 
-pub const Rect = struct {
-    x0: f32,
-    y0: f32,
-    x1: f32,
-    y1: f32,
-    pub inline fn fromWH(x0: f32, y0: f32, width: f32, height: f32) Rect {
-        return .{ .x0 = x0, .y0 = y0, .x1 = x0 + width, .y1 = y0 + height };
-    }
-    inline fn toIndices(offset: Index) [6]Index {
-        return [6]Index{ offset + 0, offset + 1, offset + 2, offset + 0, offset + 2, offset + 3 };
-    }
+pub const Option = union(enum) {
+    text_color: Color,
+};
 
-    inline fn toPosition(rect: Rect) [4]Point {
-        return [4]Point{ rect.a(), rect.b(), rect.c(), rect.d() };
-    }
-    inline fn a(rect: Rect) Point {
-        return .{ .x = rect.x0, .y = rect.y0 };
-    }
-    inline fn b(rect: Rect) Point {
-        return .{ .x = rect.x1, .y = rect.y0 };
-    }
-    inline fn c(rect: Rect) Point {
-        return .{ .x = rect.x1, .y = rect.y1 };
-    }
-    inline fn d(rect: Rect) Point {
-        return .{ .x = rect.x0, .y = rect.y1 };
-    }
+const Options = struct {
+    text_color: Color = Color.red,
 };
 
 pub const Text = struct {
@@ -50,18 +30,37 @@ const Self = @This();
 allocator: std.mem.Allocator,
 _index_buffer: IndexBuffer,
 _vertex_buffer: VertexBuffer,
+_options: std.ArrayList(Options),
 
 pub fn init(allocator: std.mem.Allocator, comptime buffer_inc_size: usize) Self {
+    var option = std.ArrayList(Options).initCapacity(allocator, 64) catch unreachable;
+    option.append(.{}) catch unreachable;
+
     return .{
         .allocator = allocator,
         ._vertex_buffer = VertexBuffer.initCapacity(allocator, buffer_inc_size) catch unreachable,
         ._index_buffer = IndexBuffer.initCapacity(allocator, buffer_inc_size) catch unreachable,
+        ._options = option,
     };
 }
 pub fn deinit(self: Self) void {
     self._index_buffer.deinit();
     self._vertex_buffer.deinit();
+    self._options.deinit();
 }
+
+pub fn push(self: *Self, opt: Option) void {
+    var head = self._options.getLast();
+    switch (opt) {
+        Option.text_color => |tc| head.text_color = tc,
+    }
+    self._options.append(head) catch unreachable;
+}
+
+pub fn pop(self: *Self) void {
+    _ = self._options.pop();
+}
+
 pub fn rectUv(self: *Self, rect: Rect, texture: Rect) !void {
     const vert_idx = self._vertex_buffer.items.len;
     try self._index_buffer.appendSlice(&Rect.toIndices(@intCast(vert_idx)));
@@ -71,10 +70,13 @@ pub fn rectUv(self: *Self, rect: Rect, texture: Rect) !void {
         try self._vertex_buffer.append(v);
     }
 }
-
-fn drawText(self: Self, text: *const Text) !void {
-    _ = text;
+pub fn char(self: Self, ch: u8) !void {
+    _ = ch;
     _ = self;
+}
+
+inline fn getOption(self: Self) Options {
+    return self._options.getLast();
 }
 
 pub inline fn vertexBufferSize(self: Self) usize {
@@ -136,5 +138,28 @@ test "draw" {
         try expect(inds[9] == offset + 0);
         try expect(inds[10] == offset + 2);
         try expect(inds[11] == offset + 3);
+    }
+}
+
+test "options" {
+    { // Defaults
+        var d = init(test_alloc, 10);
+        defer d.deinit();
+
+        const last = d.getOption();
+        try expect(last.text_color.eq(Color.red));
+    }
+    { // stack
+        var d = init(test_alloc, 10);
+        defer d.deinit();
+
+        d.push(.{ .text_color = Color.white });
+        d.push(.{ .text_color = Color.red });
+        var last = d.getOption();
+        try expect(last.text_color.eq(Color.red));
+
+        d.pop();
+        last = d.getOption();
+        try expect(last.text_color.eq(Color.white));
     }
 }
