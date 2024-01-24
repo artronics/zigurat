@@ -37,13 +37,14 @@ fn vs_main(model: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let color = in.color * textureSample(t, s, in.uv);
     // let color = textureSample(t, s, in.uv);
     // let color = mix(in.color * textureSample(t, s, in.uv), in.color, 0);
-    let corrected_color = pow(color.rgb, vec3<f32>(uniforms.gamma));
-    // return vec4<f32>(corrected_color, color.a);
-    return color;
+    // return color;
     // return vec4<f32>(1,0,0,1);
+
+    let color = in.color * textureSample(t, s, in.uv);
+    let corrected_color = pow(color.rgb, vec3<f32>(uniforms.gamma));
+    return vec4<f32>(corrected_color, color.a);
 }
 
 

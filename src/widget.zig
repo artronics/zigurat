@@ -40,8 +40,8 @@ pub const Ui = struct {
         defer self.draw.pop();
         self.label("Hello");
 
-        const rec = Rect.fromWH(100, 100, 200, 200);
-        const tex = Rect{ .x0 = 0, .y0 = 0, .x1 = 1, .y1 = 1 };
+        const rec = Rect.fromWH(0, 0, 1024, 64);
+        const tex = Rect{ .x0 = 0, .y0 = 0, .x1 = 0.25, .y1 = 0.25 };
         self.draw.rectUv(rec, tex) catch unreachable;
     }
     pub fn label(self: Self, text: []const u8) void {

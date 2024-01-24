@@ -65,8 +65,8 @@ pub fn rectUv(self: *Self, rect: Rect, texture: Rect) !void {
     const vert_idx = self._vertex_buffer.items.len;
     try self._index_buffer.appendSlice(&Rect.toIndices(@intCast(vert_idx)));
 
-    inline for (rect.toPosition()) |pos| {
-        const v = Vertex{ .position = .{ pos.x, pos.y }, .uv = texture.a().toVec(), .color = .{ 0, 1, 1, 1 } };
+    inline for (0..4, rect.toPosition()) |i, pos| {
+        const v = Vertex{ .position = .{ pos.x, pos.y }, .uv = texture.point(i).toVec(), .color = .{ 1, 1, 1, 1 } };
         try self._vertex_buffer.append(v);
     }
 }

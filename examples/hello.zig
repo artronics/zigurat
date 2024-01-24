@@ -12,13 +12,17 @@ pub fn main() !void {
     defer backend.deinit();
     var window = try zt.Window.init(allocator, &backend, .{});
     window.initCallbacks();
-    const renderer = zt.Renderer.init(allocator, &backend, &window);
+
+    var text = try zt.Text.init(allocator);
+    defer text.deinit();
+
+    var texture = try zt.Texture.init(allocator, &text);
+    defer texture.deinit();
+
+    const renderer = try zt.Renderer.init(allocator, &backend, &window, &texture);
+
     var b = try zt.widget.Ui.init(allocator, renderer);
     defer b.deinit();
     b.button();
     b.run();
-
-    //
-    // const p = try zt.platform.WgpuBackend.init(allocator, .{});
-    // defer p.deinit();
 }

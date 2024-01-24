@@ -10,7 +10,7 @@ const glfw = @import("glfw");
 pub const Options = struct {
     headless: bool = false,
     title: [:0]const u8 = "Zigurat",
-    size: Size = .{ .width = 1920 / 2, .height = 1080 / 2 },
+    size: Size = .{ .width = 2048 / 2, .height = 512 / 2 },
 };
 
 pub const Window = struct {
@@ -75,7 +75,6 @@ pub const Window = struct {
         };
         const swap_chain = backend.device.createSwapChain(surface, &swap_chain_desc);
 
-        std.log.warn("size: {d}:{d}", .{ options.size.width, options.size.height });
         return .{
             .allocator = allocator,
             .size = options.size,

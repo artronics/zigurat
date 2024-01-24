@@ -31,6 +31,9 @@ pub const Rect = struct {
     pub inline fn toPosition(rect: Rect) [4]Point {
         return [4]Point{ rect.a(), rect.b(), rect.c(), rect.d() };
     }
+    pub inline fn point(rect: Rect, i: usize) Point {
+        return rect.toPosition()[i];
+    }
     pub inline fn a(rect: Rect) Point {
         return .{ .x = rect.x0, .y = rect.y0 };
     }

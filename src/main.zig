@@ -11,6 +11,8 @@ pub const Ui = widget.Ui;
 pub const Backend = platform.WgpuBackend;
 pub const Window = window.Window;
 pub const Renderer = @import("renderer.zig");
+pub const Texture = @import("texture.zig");
+pub const Text = @import("text.zig").Text;
 
 test {
     std.testing.refAllDeclsRecursive(@This());
