@@ -38,6 +38,14 @@
             "group": {
                 "kind": "test",
             }
+        },{
+            "label": "run text tests",
+            "type": "shell",
+            "command": "${env:HOME}/.local/bin/zig build test-text",
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+            }
         },
         {
             "label": "run draw tests",
