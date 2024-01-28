@@ -4,7 +4,6 @@ const platform = @import("platform.zig");
 const gpu = @import("gpu");
 const win = @import("window.zig");
 const Window = win.Window;
-const fontmgr = @import("font.zig");
 const data = @import("data.zig");
 const Vertex = data.Vertex;
 const Index = data.Index;
@@ -77,6 +76,8 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
     }));
 
     const tex_data = try texture.buildTexture();
+    // const texels: [4]u8 = .{0xff,0xff,0xff,0xff,};
+    // const tex_data = .{ .width = 1, .height = 1, .texels = &texels };
     const img_size = gpu.Extent3D{ .width = tex_data.width, .height = tex_data.height };
 
     const tex = device.createTexture(&.{

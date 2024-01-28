@@ -13,7 +13,7 @@ pub fn main() !void {
     var window = try zt.Window.init(allocator, &backend, .{});
     window.initCallbacks();
 
-    var text = try zt.Text.init(allocator);
+    var text = try zt.FontManager.init(allocator, 300);
     defer text.deinit();
 
     var texture = try zt.Texture.init(allocator, &text);

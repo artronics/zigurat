@@ -29,6 +29,14 @@
             "group": {
                 "kind": "test",
             }
+        },{
+            "label": "run fonts tests",
+            "type": "shell",
+            "command": "${env:HOME}/.local/bin/zig build test-fonts",
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+            }
         },
         {
             "label": "run font tests",
