@@ -1,0 +1,6 @@
+<component name="ProjectRunConfigurationManager">
+    <configuration default="false" name="test atlas" type="ZIG_RUN_CONFIGURATION" factoryName="ZIG_RUN">
+        <ZigBrainsOption name="command" value="build test-atlas"/>
+        <method v="2"/>
+    </configuration>
+</component>

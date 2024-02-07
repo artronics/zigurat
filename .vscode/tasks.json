@@ -27,7 +27,7 @@
             "command": "${env:HOME}/.local/bin/zig test -femit-bin=${workspaceFolder}/zig-out/main-test ${workspaceFolder}/src/main.zig",
             "problemMatcher": [],
             "group": {
-                "kind": "test",
+                "kind": "test"
             }
         },{
             "label": "run fonts tests",
@@ -35,7 +35,16 @@
             "command": "${env:HOME}/.local/bin/zig build test-fonts",
             "problemMatcher": [],
             "group": {
-                "kind": "test",
+                "kind": "test"
+            }
+        },
+        {
+            "label": "run atlas tests",
+            "type": "shell",
+            "command": "${env:HOME}/.local/bin/zig build test-atlas",
+            "problemMatcher": [],
+            "group": {
+                "kind": "test"
             }
         },
         {
@@ -44,7 +53,7 @@
             "command": "${env:HOME}/.local/bin/zig build test-font",
             "problemMatcher": [],
             "group": {
-                "kind": "test",
+                "kind": "test"
             }
         },{
             "label": "run text tests",
@@ -52,7 +61,7 @@
             "command": "${env:HOME}/.local/bin/zig build test-text",
             "problemMatcher": [],
             "group": {
-                "kind": "test",
+                "kind": "test"
             }
         },
         {
@@ -61,7 +70,7 @@
             "command": "${env:HOME}/.local/bin/zig build test-draw",
             "problemMatcher": [],
             "group": {
-                "kind": "test",
+                "kind": "test"
             }
         },
         {
@@ -70,7 +79,7 @@
             "command": "${env:HOME}/.local/bin/zig test -femit-bin=${workspaceFolder}/zig-out/native-test ${workspaceFolder}/src/platform/native.zig",
             "problemMatcher": [],
             "group": {
-                "kind": "test",
+                "kind": "test"
             }
         },
         {
@@ -79,7 +88,7 @@
             "command": "${env:HOME}/.local/bin/zig build test-graphics/graphics",
             "problemMatcher": [],
             "group": {
-                "kind": "test",
+                "kind": "test"
             }
         }
     ]

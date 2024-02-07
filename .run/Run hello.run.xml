@@ -1,0 +1,6 @@
+<component name="ProjectRunConfigurationManager">
+    <configuration default="false" name="Run hello" type="ZIG_RUN_CONFIGURATION" factoryName="ZIG_RUN">
+        <ZigBrainsOption name="command" value="build run-hello"/>
+        <method v="2"/>
+    </configuration>
+</component>

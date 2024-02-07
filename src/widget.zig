@@ -7,19 +7,28 @@ const Size = data.Size;
 const Rect = data.Rect;
 const Color = data.Color;
 const Opt = Draw.Option;
+const font_mgr = @import("fonts.zig");
 const Allocator = std.mem.Allocator;
 
+pub const FontStyle = struct {
+label: font_mgr.FontDescriptor,
+};
+pub const Style = struct {
+font: FontStyle,
+};
 
 pub const Ui = struct {
     const Self = @This();
 
     allocator: Allocator,
+style: Style,
     renderer: Renderer,
     draw: Draw,
 
-    pub fn init(allocator: Allocator, renderer: Renderer) !Self {
+pub fn init(allocator: Allocator, renderer: Renderer, style: Style) !Self {
         return .{
             .allocator = allocator,
+        .style = style,
             .renderer = renderer,
             .draw = Draw.init(allocator, 5000),
         };
@@ -46,6 +55,7 @@ pub const Ui = struct {
     }
     pub fn label(self: Self, text: []const u8) void {
         for (text) |ch| {
+        // TODO: use rectUV. Ui should handle all the texture and atlas lookups
             self.draw.char(ch) catch unreachable;
         }
     }
