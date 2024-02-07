@@ -6,8 +6,6 @@ const Uniforms = data.Uniforms;
 const Point = data.Point;
 const Color = data.Color;
 const Rect = data.Rect;
-const font = @import("font.zig");
-const GlyphAtlas = font.GlyphAtlas;
 
 pub const Option = union(enum) {
     text_color: Color,
@@ -70,6 +68,7 @@ pub fn rectUv(self: *Self, rect: Rect, texture: Rect) !void {
         try self._vertex_buffer.append(v);
     }
 }
+// TODO: draw shouldn't know about text. User rect_uv for texture rendering instead
 pub fn char(self: Self, ch: u8) !void {
     _ = ch;
     _ = self;

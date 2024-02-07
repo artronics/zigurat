@@ -35,9 +35,10 @@ pub fn buildTexture(self: *Self) !Texture {
     self._ready = false;
     // This block should be set by client. TODO: iterate over keys of fonts and build the atlas with all GlyphCollections
     const fd = try self.fonts.addFaceMemory(roboto_reg);
+    const font_d = self.fonts.addFont(fd, 12);
 
     var buf: [4 * 1024]u8 = undefined;
-    var glyphs = try self.fonts.glyphs(fd, &buf, 12, 32, 126);
+    var glyphs = try self.fonts.glyphs(font_d, &buf, 32, 126);
 
     // This atlas will be one row only
     self.height = roundToNearestPow2(glyphs.height);
