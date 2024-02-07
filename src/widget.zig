@@ -11,24 +11,24 @@ const font_mgr = @import("fonts.zig");
 const Allocator = std.mem.Allocator;
 
 pub const FontStyle = struct {
-label: font_mgr.FontDescriptor,
+    label: font_mgr.FontDescriptor,
 };
 pub const Style = struct {
-font: FontStyle,
+    font: FontStyle,
 };
 
 pub const Ui = struct {
     const Self = @This();
 
     allocator: Allocator,
-style: Style,
+    style: Style,
     renderer: Renderer,
     draw: Draw,
 
-pub fn init(allocator: Allocator, renderer: Renderer, style: Style) !Self {
+    pub fn init(allocator: Allocator, renderer: Renderer, style: Style) !Self {
         return .{
             .allocator = allocator,
-        .style = style,
+            .style = style,
             .renderer = renderer,
             .draw = Draw.init(allocator, 5000),
         };
@@ -55,7 +55,7 @@ pub fn init(allocator: Allocator, renderer: Renderer, style: Style) !Self {
     }
     pub fn label(self: Self, text: []const u8) void {
         for (text) |ch| {
-        // TODO: use rectUV. Ui should handle all the texture and atlas lookups
+            // TODO: use rectUV. Ui should handle all the texture and atlas lookups
             self.draw.char(ch) catch unreachable;
         }
     }

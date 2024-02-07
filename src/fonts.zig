@@ -7,8 +7,8 @@ const max_num_face = 16;
 const max_num_font = 32;
 
 pub const Font = struct {
-face_desc: FaceDescriptor,
-size: i32,
+    face_desc: FaceDescriptor,
+    size: i32,
 };
 
 pub const FontManager = struct {
@@ -17,10 +17,10 @@ pub const FontManager = struct {
     allocator: std.mem.Allocator,
     _dpi: u16,
     _faces: [max_num_face]freetype.Face = undefined,
-_fonts: [max_num_font]Font = undefined,
+    _fonts: [max_num_font]Font = undefined,
     _freetype: freetype.Library,
     _face_desc: FaceDescriptor = 0,
-_font_desc: FontDescriptor = 0,
+    _font_desc: FontDescriptor = 0,
 
     pub fn init(allocator: std.mem.Allocator, dpi: u16) !Self {
         const lib = try freetype.Library.init();
@@ -45,24 +45,24 @@ _font_desc: FontDescriptor = 0,
 
         return index;
     }
-pub fn addFont(self: *Self, face_desc: FaceDescriptor, size: i32) FontDescriptor {
-    std.debug.assert(self._font_desc < max_num_font);
+    pub fn addFont(self: *Self, face_desc: FaceDescriptor, size: i32) FontDescriptor {
+        std.debug.assert(self._font_desc < max_num_font);
 
-    const index = self._font_desc;
-    self._fonts[index] = Font{ .face_desc = face_desc, .size = size };
+        const index = self._font_desc;
+        self._fonts[index] = Font{ .face_desc = face_desc, .size = size };
 
-    self._font_desc += 1;
+        self._font_desc += 1;
 
-    return index;
-}
-pub fn getFonts(self: Self) []const Font {
-    return self._fonts[0..self._font_desc];
-}
+        return index;
+    }
+    pub fn getFonts(self: Self) []const Font {
+        return self._fonts[0..self._font_desc];
+    }
 
-pub fn glyphs(self: *Self, font_desc: FontDescriptor, buf: []u8, range_lower: u32, range_upper: u32) !GlyphIterator {
-    const font = self._fonts[font_desc];
-    const face = self._faces[font.face_desc];
-    try face.setCharSize(64 * font.size, 0, self._dpi, 0);
+    pub fn glyphs(self: *Self, font_desc: FontDescriptor, buf: []u8, range_lower: u32, range_upper: u32) !GlyphIterator {
+        const font = self._fonts[font_desc];
+        const face = self._faces[font.face_desc];
+        try face.setCharSize(64 * font.size, 0, self._dpi, 0);
         const metrics = face.size().metrics();
 
         return .{
@@ -70,7 +70,7 @@ pub fn glyphs(self: *Self, font_desc: FontDescriptor, buf: []u8, range_lower: u3
             .buf = buf,
             .upper = range_upper,
             .lower = range_lower,
-        .size = font.size,
+            .size = font.size,
             .height = @as(u32, @intCast(metrics.height)) >> 6,
             .index = range_lower,
         };
