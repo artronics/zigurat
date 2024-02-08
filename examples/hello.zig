@@ -14,18 +14,18 @@ pub fn main() !void {
 
     var fonts = try zt.FontManager.init(allocator, 300);
     defer fonts.deinit();
+
+    const char_range = zt.GlyphRange.asciiPrintable();
     const face_desc = try fonts.addFaceMemory(zt.assets.fonts_roboto_regular);
-    const font_desc = fonts.addFont(face_desc, 12);
-    const style = zt.Style{ .font = zt.FontStyle{ .label = font_desc } };
+    const font_desc = fonts.addFont(face_desc, 12, char_range);
 
-    const atlas = zt.Atlas.init(allocator, &fonts);
+    var atlas = zt.Atlas.init(allocator, &fonts);
     defer atlas.deinit();
+    const texture = try atlas.buildAtlas();
 
-    var texture = try zt.Texture.init(allocator, &fonts);
-    defer texture.deinit();
+    const renderer = try zt.Renderer.init(allocator, &backend, &window, texture);
 
-    const renderer = try zt.Renderer.init(allocator, &backend, &window, &texture);
-
+    const style = zt.Style{ .font = zt.FontStyle{ .label = font_desc } };
     var b = try zt.widget.Ui.init(allocator, renderer, style);
     defer b.deinit();
     b.button();

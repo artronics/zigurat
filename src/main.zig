@@ -16,7 +16,9 @@ pub const assets = @import("assets");
 pub const Renderer = @import("renderer.zig");
 pub const Texture = @import("texture.zig");
 pub const Atlas = @import("atlas.zig").Atlas;
-pub const FontManager = @import("fonts.zig").FontManager;
+pub const fonts = @import("fonts.zig");
+pub const FontManager = fonts.FontManager;
+pub const GlyphRange = fonts.GlyphRange;
 
 test {
     std.testing.refAllDeclsRecursive(@This());

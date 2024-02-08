@@ -11,9 +11,9 @@ const Uniforms = data.Uniforms;
 const Point = data.Point;
 const Color = data.Color;
 const Size = data.Size;
+const Texture = data.Texture;
 const Backend = platform.WgpuBackend;
 const Draw = @import("draw.zig");
-const Texture = @import("texture.zig");
 
 const Self = @This();
 
@@ -28,10 +28,9 @@ vertex_buffer: *gpu.Buffer,
 index_buffer: *gpu.Buffer,
 uniforms_buffer: *gpu.Buffer,
 sampler: *gpu.Sampler,
-texture: *Texture,
 
 // Client owns the backend and texture. Renderer takes ownership of window
-pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window, texture: *Texture) !Self {
+pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window, texture: Texture) !Self {
     const device = backend.device;
     const shader = @embedFile("shader.wgsl");
     const vs_mod = device.createShaderModuleWGSL("Vertex Shader", shader);
@@ -75,10 +74,7 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
         },
     }));
 
-    const tex_data = try texture.buildTexture();
-    // const texels: [4]u8 = .{0xff,0xff,0xff,0xff,};
-    // const tex_data = .{ .width = 1, .height = 1, .texels = &texels };
-    const img_size = gpu.Extent3D{ .width = tex_data.width, .height = tex_data.height };
+    const img_size = gpu.Extent3D{ .width = texture.width, .height = texture.height };
 
     const tex = device.createTexture(&.{
         .label = "Font Atlas",
@@ -91,11 +87,7 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
         .mip_level_count = 1,
         .sample_count = 1,
     });
-    const data_layout = gpu.Texture.DataLayout{
-        .bytes_per_row = tex_data.width * 4,
-        .rows_per_image = tex_data.height,
-    };
-    backend.queue.writeTexture(&.{ .texture = tex }, &data_layout, &img_size, tex_data.texels);
+    backend.queue.writeTexture(&.{ .texture = tex }, &texture.layout(), &img_size, texture.texels);
 
     const image_bg_layout1 = pipeline.getBindGroupLayout(1);
 
@@ -126,7 +118,6 @@ pub fn init(allocator: Allocator, backend: *const Backend, window: *const Window
         .vertex_buffer = vertex_buf,
         .index_buffer = index_buf,
         .sampler = sampler,
-        .texture = texture,
     };
 }
 pub fn deinit(self: Self) void {

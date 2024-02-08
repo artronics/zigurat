@@ -103,8 +103,15 @@ pub const Uniforms = extern struct {
     gamma: f32,
 };
 
+/// RGBA8 texture
 pub const Texture = struct {
     width: u32,
     height: u32,
     texels: []const u8,
+    pub inline fn layout(self: Texture) gpu.Texture.DataLayout {
+        return .{
+            .bytes_per_row = self.width * 4,
+            .rows_per_image = self.height,
+        };
+    }
 };
