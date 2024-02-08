@@ -104,10 +104,8 @@ pub fn build(b: *std.Build) void {
 
     // Tests
     addTest(b, "main", optimize, target);
-    addTest(b, "font", optimize, target);
     addTest(b, "fonts", optimize, target);
     addTest(b, "atlas", optimize, target);
-    addTest(b, "text", optimize, target);
     addTest(b, "draw", optimize, target);
 }
 
